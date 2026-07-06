@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebTracker — Amiga MOD tracker</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">Web<span>Tracker</span><small>ProTracker · OctaMED inspired</small></div>
+
+  <div class="group">
+    <label>SONG</label>
+    <input type="text" id="songTitle" maxlength="20" spellcheck="false">
+  </div>
+
+  <div class="group">
+    <button id="btnNew">New</button>
+    <button id="btnLoad" title="Load ProTracker .MOD or OctaMED MMD0/MMD1">Load</button>
+    <button id="btnSave" title="Save as ProTracker .MOD">Save .MOD</button>
+    <button id="btnExport" title="Render the whole song to a 44.1kHz WAV file">Export WAV</button>
+    <input type="file" id="fileInput" accept=".mod,.MOD,.med,.MED,.mmd,.MMD" hidden>
+  </div>
+
+  <div class="group transport">
+    <span class="led" id="ledPlay"></span>
+    <button id="btnPlaySong" title="Play song from start">▶ Song</button>
+    <button id="btnPlayHere" title="Play song from current position (Shift+Space)">▶ Here</button>
+    <button id="btnPlayPat" title="Loop current pattern (Space)">▶ Pat</button>
+    <button id="btnStop" title="Stop (Space / Esc)">■ Stop</button>
+  </div>
+
+  <div class="group">
+    <label>BPM</label><input type="number" id="bpmInput" value="125" min="32" max="255">
+    <label>SPD</label><input type="number" id="speedInput" value="6" min="1" max="31">
+  </div>
+
+  <div class="group">
+    <label>OCT</label>
+    <button id="octDown">−</button><span class="disp" id="octDisp">2</span><button id="octUp">+</button>
+    <label>STEP</label>
+    <button id="stepDown">−</button><span class="disp" id="stepDisp">1</span><button id="stepUp">+</button>
+  </div>
+
+  <div class="group">
+    <button id="editBtn" class="toggle" title="Edit mode: keys write into the pattern; while playing, notes are recorded live">EDIT</button>
+    <button id="followBtn" class="toggle" title="View follows playback">FOLLOW</button>
+    <button id="paulaBtn" class="toggle" title="Paula mode: nearest-neighbour 8-bit output + Amiga RC filter; E0x toggles the LED filter">PAULA</button>
+    <button id="btnHelp" title="Keyboard reference (F1)">?</button>
+  </div>
+</header>
+
+<div class="orderbar">
+  <label>POS</label>
+  <button id="ordPrev">◂</button>
+  <button id="ordNext">▸</button>
+  <div id="orderList"></div>
+  <button id="ordIns" title="Insert position">Ins</button>
+  <button id="ordDel" title="Delete position">Del</button>
+  <label>PAT</label>
+  <button id="patDec">−</button>
+  <button id="patInc">+</button>
+  <label>CH</label>
+  <button id="chDec" title="Remove a channel">−</button>
+  <span class="disp" id="chDisp">4</span>
+  <button id="chInc" title="Add a channel (saves as 6CHN/8CHN etc.)">+</button>
+</div>
+
+<main>
+  <aside>
+    <h2>Samples</h2>
+    <div id="sampleList"></div>
+    <div class="smp-props">
+      <div class="smp-info-row">
+        <span class="smp-info" id="smpInfo"></span>
+        <span class="wv-sel" id="wvSel">no selection</span>
+      </div>
+      <canvas id="waveform" title="Drag to select · toggle Draw to sketch a waveform"></canvas>
+      <div class="wave-tools">
+        <button id="wvMode" class="toggle mini" title="Toggle freehand draw mode">✎ Draw</button>
+        <button id="wvTrim" class="mini" title="Keep only the selection">Trim</button>
+        <button id="wvCut" class="mini" title="Delete the selection">Cut</button>
+        <button id="wvFadeIn" class="mini" title="Fade in over selection (or all)">Fade‹</button>
+        <button id="wvFadeOut" class="mini" title="Fade out over selection (or all)">Fade›</button>
+      </div>
+      <div class="wave-tools">
+        <button id="wvNorm" class="mini" title="Normalize to full amplitude">Norm</button>
+        <button id="wvRev" class="mini" title="Reverse selection (or all)">Rev</button>
+        <button id="wvSil" class="mini" title="Silence selection (or all)">Sil</button>
+        <button id="wvLoop" class="mini" title="Set loop points from selection">Loop=Sel</button>
+      </div>
+      <div class="field"><label>Name</label><input type="text" id="smpName" maxlength="22" spellcheck="false"></div>
+      <div class="field-row">
+        <div class="field"><label>Vol</label><input type="number" id="smpVol" min="0" max="64"></div>
+        <div class="field"><label>Fine</label><input type="number" id="smpFine" min="-8" max="7"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Loop st</label><input type="number" id="smpLoopStart" min="0" step="2"></div>
+        <div class="field"><label>Loop len</label><input type="number" id="smpLoopLen" min="0" step="2"></div>
+      </div>
+      <div class="field-row">
+        <button id="btnSmpImport" title="Import WAV/MP3/etc as 8-bit sample">Import audio</button>
+        <button id="btnSmpClear">Clear</button>
+        <input type="file" id="wavInput" accept="audio/*" hidden>
+      </div>
+    </div>
+  </aside>
+
+  <section class="editor">
+    <div id="scopes"></div>
+    <div id="chanHeaders"></div>
+    <div class="pattern-wrap">
+      <canvas id="pattern"></canvas>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div id="statusMsg"></div>
+  <div class="status-right">
+    POS <b id="stPos">00/01</b> · PAT <b id="stPat">00</b> · ROW <b id="stRow">00</b>
+  </div>
+  <div class="keys">
+    <b>Z–M / Q–P</b> notes · <b>Space</b> play/stop · <b>Shift+arrows</b> select ·
+    <b>⌘C/X/V</b> copy/cut/paste · <b>⌘Z</b> undo · <b>F1</b> help
+  </div>
+</footer>
+
+<div id="helpModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>Keyboard reference</h3>
+    <div class="help-cols">
+      <table>
+        <tr><th colspan="2">Transport</th></tr>
+        <tr><td>Space</td><td>play pattern / stop</td></tr>
+        <tr><td>Shift+Space</td><td>play song from current position</td></tr>
+        <tr><td>Esc</td><td>clear selection / stop</td></tr>
+        <tr><td>EDIT while playing</td><td>record mode — note keys write into the pattern, quantized to the nearest row</td></tr>
+        <tr><td>PAULA toggle</td><td>Amiga sound: nearest-neighbour + RC filter, E0x LED filter</td></tr>
+        <tr><th colspan="2">Notes</th></tr>
+        <tr><td>Z–M , L . ; /</td><td>lower octave (ProTracker layout)</td></tr>
+        <tr><td>Q–P with 2 3 5 6 7 9 0</td><td>upper octave</td></tr>
+        <tr><td>[ ]</td><td>octave down / up</td></tr>
+        <tr><td>0–9 A–F</td><td>hex entry in sample/effect columns</td></tr>
+        <tr><th colspan="2">Cursor</th></tr>
+        <tr><td>Arrows / PgUp / PgDn / Home / End</td><td>move</td></tr>
+        <tr><td>Tab / Shift+Tab</td><td>next / previous channel</td></tr>
+      </table>
+      <table>
+        <tr><th colspan="2">Editing</th></tr>
+        <tr><td>Shift+arrows or mouse drag</td><td>select block</td></tr>
+        <tr><td>Ctrl/⌘ C / X / V</td><td>copy / cut / paste block</td></tr>
+        <tr><td>Ctrl/⌘ A</td><td>select channel, again → pattern</td></tr>
+        <tr><td>Ctrl/⌘ Z · Shift+⌘Z</td><td>undo · redo</td></tr>
+        <tr><td>Shift+Alt+↑/↓</td><td>transpose ±1 semitone</td></tr>
+        <tr><td>Shift+Alt+PgUp/PgDn</td><td>transpose ±1 octave</td></tr>
+        <tr><td>Delete</td><td>clear note / selection (Shift: whole cell)</td></tr>
+        <tr><td>Insert / Backspace</td><td>push channel down / pull up</td></tr>
+        <tr><th colspan="2">Mouse</th></tr>
+        <tr><td>Click channel header</td><td>mute (Shift+click: solo)</td></tr>
+        <tr><td>CH − / + (order bar)</td><td>4–8 channels (saves as M.K. / 6CHN / 8CHN)</td></tr>
+        <tr><td>Drag on waveform</td><td>select region (Draw mode: sketch)</td></tr>
+      </table>
+    </div>
+    <button id="helpClose">Close</button>
+  </div>
+</div>
+
+<script src="js/mod.js"></script>
+<script src="js/med.js"></script>
+<script src="js/player.js"></script>
+<script src="js/patternview.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

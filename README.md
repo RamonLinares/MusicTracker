@@ -1,22 +1,38 @@
 # WebTracker
 
-A modern web-based Amiga music tracker inspired by **ProTracker** and **OctaMED**,
-compatible with the classic Amiga module formats: loads and saves ProTracker
-`.MOD` (`M.K.`, plus `M!K!`, `FLT4`, `xCHN` and 15-sample Ultimate SoundTracker
-on load) and loads **OctaMED MMD0/MMD1** modules.
+WebTracker is a browser-based Amiga music tracker inspired by **ProTracker** and
+**OctaMED**. It runs as a static web app and can load, edit, play, and save
+classic tracker modules directly in the browser.
 
-## Running
+Live app: <https://ramonlinares.github.io/MusicTracker/>
 
-The app is plain HTML/JS — it only needs a static file server (the AudioWorklet
-module can't be loaded from `file://`):
+## Quick Start
+
+The hosted version runs on GitHub Pages:
+
+<https://ramonlinares.github.io/MusicTracker/>
+
+For local development, use any static file server. AudioWorklet modules cannot
+be loaded from `file://`, so opening `index.html` directly is not enough.
 
 ```sh
 python3 -m http.server 8642
-# then open http://localhost:8642
 ```
 
-A demo chiptune is loaded on startup. Press **Space** to loop the current
-pattern, **Shift+Space** to play the song, **F1** for the keyboard reference.
+Then open <http://localhost:8642>.
+
+A demo song is generated on startup. Press **Space** to loop the current
+pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference.
+
+## Format Support
+
+- Loads and saves ProTracker `.MOD` files.
+- Loads `M.K.`, `M!K!`, `FLT4`, `xCHN`, and 15-sample Ultimate SoundTracker
+  modules.
+- Loads OctaMED MMD0/MMD1 modules and converts them into the internal song
+  model.
+- Saves as ProTracker-compatible MOD data. OctaMED synth concepts are playable
+  after import but cannot be represented in saved MOD files.
 
 ## Features
 
@@ -53,7 +69,7 @@ pattern, **Shift+Space** to play the song, **F1** for the keyboard reference.
   per-position pattern assignment, oscilloscopes per channel, **4–8 channels**
   (CH −/+ in the order bar; 4-channel songs save as `M.K.`, others as
   `6CHN`/`8CHN` etc., which OpenMPT/MilkyTracker and most players read).
-- **File I/O** — byte-exact round-trip of pattern data with real ProTracker
+- **File I/O** — byte-exact round trip of pattern data with real ProTracker
   modules; saved files open in ProTracker, OctaMED, OpenMPT, MilkyTracker, etc.
   OctaMED MMD0/MMD1 files are converted on load (blocks longer than 64 lines
   are split into chained patterns, MED commands are mapped to their ProTracker
@@ -86,7 +102,7 @@ Press **F1** in the app for the full reference.
 | `Delete` / `Insert` / `Backspace` | clear · push track down · pull up |
 | click / shift+click channel header | mute / solo |
 
-## Files
+## Project Layout
 
 - `index.html`, `css/style.css` — UI shell
 - `js/mod.js` — ProTracker MOD parser/writer, note tables, demo song
@@ -95,3 +111,31 @@ Press **F1** in the app for the full reference.
 - `js/player.js` — main-thread AudioWorklet wrapper
 - `js/patternview.js` — canvas pattern editor
 - `js/app.js` — UI glue, keyboard, selection/undo, sample & order editors, file I/O
+
+## Development Notes
+
+- The app has no build step and no runtime dependencies.
+- Keep generated audio/module exports out of the repository. `.mod` files are
+  ignored intentionally.
+- Keep local editor or assistant configuration out of the repository. The
+  `.claude/` folder is ignored intentionally.
+- Test changes through a local static server so AudioWorklet loading matches the
+  hosted environment.
+
+## Deployment
+
+This repository is published with GitHub Pages from the `main` branch at the
+repository root. The `.nojekyll` file keeps GitHub Pages from applying Jekyll
+processing to the static site.
+
+## Security
+
+WebTracker processes user-selected module and audio files locally in the
+browser. Do not upload private or copyrighted modules to public issues unless
+you have the right to share them. See [SECURITY.md](SECURITY.md) for reporting
+guidance.
+
+## License
+
+No open source license has been selected yet. Until a license is added, all
+rights are reserved by the repository owner.

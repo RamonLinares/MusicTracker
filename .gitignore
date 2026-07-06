@@ -2,3 +2,5 @@
 *.MOD
 .claude/
 .DS_Store
+.playwright-cli/
+output/

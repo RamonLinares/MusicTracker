@@ -5,7 +5,7 @@ Thanks for taking the time to improve WebTracker.
 ## Local Setup
 
 WebTracker is a static HTML/CSS/JavaScript app. It has no install step and no
-package manager dependencies.
+runtime package manager dependencies.
 
 ```sh
 python3 -m http.server 8642
@@ -16,10 +16,18 @@ Open <http://localhost:8642> after starting the server.
 Do not test by opening `index.html` directly from the filesystem. The app uses
 AudioWorklet, which must be loaded from an HTTP origin.
 
+The repository also provides convenience scripts:
+
+```sh
+npm run serve
+npm test
+```
+
 ## Before Opening a Pull Request
 
 - Run the app from a local static server.
 - Verify playback starts after a user interaction.
+- Run `npm test`.
 - Verify loading and saving a small MOD file still works when touching parser,
   writer, or playback code.
 - Check browser console output for new errors.

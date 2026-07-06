@@ -6,6 +6,8 @@ classic tracker modules directly in the browser.
 
 Live app: <https://ramonlinares.github.io/MusicTracker/>
 
+![WebTracker screenshot](assets/screenshots/webtracker.png)
+
 ## Quick Start
 
 The hosted version runs on GitHub Pages:
@@ -20,6 +22,14 @@ python3 -m http.server 8642
 ```
 
 Then open <http://localhost:8642>.
+
+The npm scripts are convenience wrappers only; there are no runtime package
+dependencies.
+
+```sh
+npm run serve
+npm test
+```
 
 A demo song is generated on startup. Press **Space** to loop the current
 pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference.
@@ -84,6 +94,12 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
 - **WAV export** — renders the whole song offline (honoring tempo changes,
   jumps, breaks and loops when computing the length) to 44.1 kHz 16-bit
   stereo. Muted channels stay muted, so it can also render stems.
+- **Install/offline support** — includes a web app manifest and service worker
+  so the app shell can be installed and opened offline after a first visit.
+- **Autosave** — current work is saved to browser storage and restored when the
+  app is reopened.
+- **Drag-and-drop loading** — drop a `.mod`, `.med`, or `.mmd` file onto the
+  page to load it.
 
 ## Keys
 
@@ -111,6 +127,9 @@ Press **F1** in the app for the full reference.
 - `js/player.js` — main-thread AudioWorklet wrapper
 - `js/patternview.js` — canvas pattern editor
 - `js/app.js` — UI glue, keyboard, selection/undo, sample & order editors, file I/O
+- `js/pwa.js`, `service-worker.js`, `manifest.webmanifest` — install/offline shell
+- `tests/mod-roundtrip.test.js` — synthetic MOD parser/writer smoke tests
+- `assets/` — screenshots, icons and social preview images
 
 ## Development Notes
 
@@ -121,6 +140,7 @@ Press **F1** in the app for the full reference.
   `.claude/` folder is ignored intentionally.
 - Test changes through a local static server so AudioWorklet loading matches the
   hosted environment.
+- Run `npm test` before publishing parser/writer changes.
 
 ## Deployment
 
@@ -137,5 +157,4 @@ guidance.
 
 ## License
 
-No open source license has been selected yet. Until a license is added, all
-rights are reserved by the repository owner.
+WebTracker is released under the [MIT License](LICENSE).

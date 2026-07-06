@@ -30,8 +30,234 @@
     wave: { mode: 'select', a: -1, b: -1 } // waveform editor selection (bytes)
   };
 
+  const AUTOSAVE_DB = 'webtracker-autosave';
+  const AUTOSAVE_STORE = 'drafts';
+  const AUTOSAVE_KEY = 'current';
+  const AUTOSAVE_SCHEMA = 1;
+  const AUTOSAVE_DELAY = 650;
+  const autosave = { timer: 0, restoring: false };
+
   function curPattern() {
     return state.song.order[state.curPos] | 0;
+  }
+
+  // ---- autosave -----------------------------------------------------------
+
+  function asInt8(data) {
+    if (data instanceof Int8Array) return data.slice();
+    if (ArrayBuffer.isView(data)) return new Int8Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+    if (data instanceof ArrayBuffer) return new Int8Array(data.slice(0));
+    if (Array.isArray(data)) return new Int8Array(data);
+    return new Int8Array(0);
+  }
+
+  function asUint8(data, fallbackLength) {
+    if (data instanceof Uint8Array) return data.slice();
+    if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+    if (data instanceof ArrayBuffer) return new Uint8Array(data.slice(0));
+    if (Array.isArray(data)) return new Uint8Array(data);
+    return new Uint8Array(fallbackLength || 0);
+  }
+
+  function clampNum(value, min, max, fallback) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+  }
+
+  function cloneSynthForStorage(synth) {
+    if (!synth) return null;
+    return {
+      hybrid: !!synth.hybrid,
+      volspeed: synth.volspeed || 0,
+      wfspeed: synth.wfspeed || 0,
+      voltbl: Array.isArray(synth.voltbl) ? synth.voltbl.slice() : [],
+      wftbl: Array.isArray(synth.wftbl) ? synth.wftbl.slice() : [],
+      waveforms: (synth.waveforms || []).map(w => asInt8(w))
+    };
+  }
+
+  function cloneSampleForStorage(sample) {
+    return {
+      name: sample.name || '',
+      volume: clampNum(sample.volume, 0, 64, 64),
+      finetune: clampNum(sample.finetune, -8, 7, 0),
+      loopStart: Math.max(0, sample.loopStart | 0),
+      loopLen: Math.max(0, sample.loopLen | 0),
+      data: asInt8(sample.data),
+      synth: cloneSynthForStorage(sample.synth)
+    };
+  }
+
+  function cloneSongForStorage(song) {
+    return {
+      title: song.title || '',
+      channels: clampNum(song.channels, 1, 32, 4),
+      order: song.order.slice(),
+      patterns: song.patterns.map(p => asUint8(p)),
+      samples: song.samples.map(cloneSampleForStorage),
+      initBPM: song.initBPM || null,
+      initSpeed: song.initSpeed || null
+    };
+  }
+
+  function songFromStorage(saved) {
+    const channels = clampNum(saved && saved.channels, 1, 32, 4);
+    const song = MOD.newSong(channels);
+    song.title = String(saved.title || '').slice(0, 20);
+    song.order = Array.isArray(saved.order) && saved.order.length
+      ? saved.order.slice(0, 128).map(v => clampNum(v, 0, 127, 0) | 0)
+      : [0];
+    song.patterns = Array.isArray(saved.patterns) && saved.patterns.length
+      ? saved.patterns.map(p => {
+        const raw = asUint8(p);
+        const out = MOD.newPattern(channels);
+        out.set(raw.slice(0, out.length));
+        return out;
+      })
+      : [MOD.newPattern(channels)];
+    while (song.patterns.length <= Math.max(...song.order)) song.patterns.push(MOD.newPattern(channels));
+    song.samples = [];
+    for (let i = 0; i < 31; i++) {
+      const src = saved.samples && saved.samples[i] ? saved.samples[i] : {};
+      const sample = MOD.emptySample();
+      sample.name = String(src.name || '').slice(0, 22);
+      sample.volume = clampNum(src.volume, 0, 64, 64);
+      sample.finetune = clampNum(src.finetune, -8, 7, 0);
+      sample.loopStart = Math.max(0, src.loopStart | 0);
+      sample.loopLen = Math.max(0, src.loopLen | 0);
+      sample.data = asInt8(src.data);
+      sample.synth = cloneSynthForStorage(src.synth);
+      if (!sample.synth) delete sample.synth;
+      if (sample.loopStart >= sample.data.length) { sample.loopStart = 0; sample.loopLen = 0; }
+      if (sample.loopStart + sample.loopLen > sample.data.length) {
+        sample.loopLen = Math.max(0, sample.data.length - sample.loopStart);
+      }
+      song.samples.push(sample);
+    }
+    if (saved.initBPM) song.initBPM = clampNum(saved.initBPM, 32, 255, 125);
+    if (saved.initSpeed) song.initSpeed = clampNum(saved.initSpeed, 1, 31, 6);
+    return song;
+  }
+
+  function openAutosaveDb() {
+    if (!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB unavailable'));
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(AUTOSAVE_DB, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(AUTOSAVE_STORE)) db.createObjectStore(AUTOSAVE_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function txDone(tx) {
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  async function writeAutosaveDraft(draft) {
+    const db = await openAutosaveDb();
+    try {
+      const tx = db.transaction(AUTOSAVE_STORE, 'readwrite');
+      tx.objectStore(AUTOSAVE_STORE).put(draft, AUTOSAVE_KEY);
+      await txDone(tx);
+    } finally {
+      db.close();
+    }
+  }
+
+  async function readAutosaveDraft() {
+    const db = await openAutosaveDb();
+    try {
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(AUTOSAVE_STORE, 'readonly');
+        const req = tx.objectStore(AUTOSAVE_STORE).get(AUTOSAVE_KEY);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } finally {
+      db.close();
+    }
+  }
+
+  function buildAutosaveDraft() {
+    return {
+      schema: AUTOSAVE_SCHEMA,
+      savedAt: Date.now(),
+      song: cloneSongForStorage(state.song),
+      curPos: state.curPos,
+      cursor: { ...state.cursor },
+      octave: state.octave,
+      step: state.step,
+      curSample: state.curSample,
+      editMode: state.editMode,
+      follow: state.follow,
+      paula: state.paula,
+      muted: state.muted.slice(),
+      bpm: parseInt($('bpmInput').value, 10) || 125,
+      speed: parseInt($('speedInput').value, 10) || 6
+    };
+  }
+
+  function scheduleAutosave() {
+    if (autosave.restoring) return;
+    clearTimeout(autosave.timer);
+    autosave.timer = window.setTimeout(() => {
+      autosave.timer = 0;
+      writeAutosaveDraft(buildAutosaveDraft())
+        .catch(err => console.warn('Autosave failed:', err));
+    }, AUTOSAVE_DELAY);
+  }
+
+  async function restoreAutosave() {
+    let draft = null;
+    try {
+      draft = await readAutosaveDraft();
+    } catch (err) {
+      console.warn('Autosave restore failed:', err);
+      return false;
+    }
+    if (!draft || draft.schema !== AUTOSAVE_SCHEMA || !draft.song) return false;
+
+    autosave.restoring = true;
+    try {
+      const song = songFromStorage(draft.song);
+      state.song = song;
+      state.curPos = clampNum(draft.curPos, 0, song.order.length - 1, 0);
+      state.cursor = {
+        row: clampNum(draft.cursor && draft.cursor.row, 0, 63, 0),
+        ch: clampNum(draft.cursor && draft.cursor.ch, 0, song.channels - 1, 0),
+        col: clampNum(draft.cursor && draft.cursor.col, 0, 5, 0)
+      };
+      state.octave = clampNum(draft.octave, 1, 3, 2);
+      state.step = clampNum(draft.step, 0, 16, 1);
+      state.curSample = clampNum(draft.curSample, 0, 30, 0);
+      state.editMode = draft.editMode !== false;
+      state.follow = draft.follow !== false;
+      state.paula = !!draft.paula;
+      state.muted = Array.isArray(draft.muted)
+        ? draft.muted.slice(0, song.channels).map(Boolean)
+        : new Array(song.channels).fill(false);
+      while (state.muted.length < song.channels) state.muted.push(false);
+      state.wave.a = state.wave.b = -1;
+      clearHistory();
+      $('bpmInput').value = clampNum(draft.bpm, 32, 255, song.initBPM || 125);
+      $('speedInput').value = clampNum(draft.speed, 1, 31, song.initSpeed || 6);
+      player.sendSong(song);
+      player.setMute(state.muted);
+      player.msg({ type: 'paula', on: state.paula });
+      renderAll();
+      drawScopes(null);
+      setStatusMsg('Restored autosaved draft from ' + new Date(draft.savedAt || Date.now()).toLocaleString());
+      return true;
+    } finally {
+      autosave.restoring = false;
+    }
   }
 
   // ---- undo / redo ---------------------------------------------------------
@@ -87,6 +313,7 @@
       drawScopes(null);
     }
     renderAll();
+    scheduleAutosave();
     return inverse;
   }
 
@@ -149,6 +376,7 @@
           state.muted[i] = !state.muted[i];
         }
         player.setMute(state.muted);
+        scheduleAutosave();
         renderChannelHeaders();
         drawPattern();
       };
@@ -452,6 +680,7 @@
     const out = fn(n, s, f, pm);
     MOD.cellSet(state.song, p, state.cursor.row, state.cursor.ch, out[0], out[1], out[2], out[3]);
     player.sendPattern(state.song, p);
+    scheduleAutosave();
   }
 
   function advanceRow() {
@@ -485,6 +714,7 @@
         for (let ch = 0; ch < chs; ch++)
           MOD.cellSet(state.song, p, s.r0 + r, s.c0 + ch, 0, 0, 0, 0);
       player.sendPattern(state.song, p);
+      scheduleAutosave();
       drawPattern();
     }
     setStatusMsg((cut ? 'Cut' : 'Copied') + ` ${rows}×${chs} block`);
@@ -506,6 +736,7 @@
       }
     }
     player.sendPattern(state.song, p);
+    scheduleAutosave();
     drawPattern();
     setStatusMsg(`Pasted ${cb.rows}×${cb.chs} block`);
   }
@@ -518,6 +749,7 @@
       for (let ch = s.c0; ch <= s.c1; ch++)
         MOD.cellSet(state.song, p, r, ch, 0, 0, 0, 0);
     player.sendPattern(state.song, p);
+    scheduleAutosave();
     drawPattern();
   }
 
@@ -532,6 +764,7 @@
       }
     }
     player.sendPattern(state.song, p);
+    scheduleAutosave();
     drawPattern();
     setStatusMsg(`Transposed ${delta > 0 ? '+' : ''}${delta}`);
   }
@@ -556,6 +789,7 @@
     }
     MOD.cellSet(state.song, p, row, ch, 0, 0, 0, 0);
     player.sendPattern(state.song, p);
+    scheduleAutosave();
     drawPattern();
   }
 
@@ -571,6 +805,7 @@
     MOD.cellSet(state.song, p, 63, ch, 0, 0, 0, 0);
     state.cursor.row = row - 1;
     player.sendPattern(state.song, p);
+    scheduleAutosave();
     drawPattern(); renderStatus();
   }
 
@@ -611,6 +846,7 @@
     const [, , f, pm] = MOD.cellGet(state.song, p, row, state.cursor.ch);
     MOD.cellSet(state.song, p, row, state.cursor.ch, note, state.curSample + 1, f, pm);
     player.sendPattern(state.song, p);
+    scheduleAutosave();
     drawPattern();
   }
 
@@ -683,8 +919,8 @@
       case 'PageDown': e.preventDefault(); c.row = Math.min(63, c.row + 16); clearSel(); drawPattern(); renderStatus(); return;
       case 'Home': e.preventDefault(); c.row = 0; clearSel(); drawPattern(); renderStatus(); return;
       case 'End': e.preventDefault(); c.row = 63; clearSel(); drawPattern(); renderStatus(); return;
-      case 'BracketLeft': state.octave = Math.max(1, state.octave - 1); renderStatus(); return;
-      case 'BracketRight': state.octave = Math.min(3, state.octave + 1); renderStatus(); return;
+      case 'BracketLeft': state.octave = Math.max(1, state.octave - 1); scheduleAutosave(); renderStatus(); return;
+      case 'BracketRight': state.octave = Math.min(3, state.octave + 1); scheduleAutosave(); renderStatus(); return;
       case 'Insert':
         if (state.editMode) { e.preventDefault(); insertRow(); }
         return;
@@ -811,6 +1047,7 @@
 
   function orderChanged() {
     player.sendOrder(state.song);
+    scheduleAutosave();
     renderOrder(); renderStatus(); drawPattern();
   }
 
@@ -885,6 +1122,7 @@
     player.setMute(state.muted);
     renderAll();
     drawScopes(null);
+    scheduleAutosave();
     setStatusMsg(`${n} channels — saves as ${n === 4 ? 'M.K.' : n + 'CHN'}` +
       (n === 5 || n === 7 ? ' (rare tag; 4, 6 or 8 channels is most compatible)' : ''));
   }
@@ -898,25 +1136,35 @@
   $('btnPlayHere').onclick = () => playSong(true);
   $('btnPlayPat').onclick = () => playPattern();
   $('btnStop').onclick = () => stop();
-  $('editBtn').onclick = () => { state.editMode = !state.editMode; renderStatus(); drawPattern(); };
-  $('followBtn').onclick = () => { state.follow = !state.follow; renderStatus(); };
+  $('editBtn').onclick = () => { state.editMode = !state.editMode; scheduleAutosave(); renderStatus(); drawPattern(); };
+  $('followBtn').onclick = () => { state.follow = !state.follow; scheduleAutosave(); renderStatus(); };
   $('paulaBtn').onclick = () => {
     state.paula = !state.paula;
     player.msg({ type: 'paula', on: state.paula });
+    scheduleAutosave();
     renderStatus();
     setStatusMsg(state.paula
       ? 'Paula mode: 8-bit nearest-neighbour + Amiga RC filter (E0x toggles the LED filter)'
       : 'Modern mode: linear interpolation, no output filters');
   };
-  $('octDown').onclick = () => { state.octave = Math.max(1, state.octave - 1); renderStatus(); };
-  $('octUp').onclick = () => { state.octave = Math.min(3, state.octave + 1); renderStatus(); };
-  $('stepDown').onclick = () => { state.step = Math.max(0, state.step - 1); renderStatus(); };
-  $('stepUp').onclick = () => { state.step = Math.min(16, state.step + 1); renderStatus(); };
+  $('octDown').onclick = () => { state.octave = Math.max(1, state.octave - 1); scheduleAutosave(); renderStatus(); };
+  $('octUp').onclick = () => { state.octave = Math.min(3, state.octave + 1); scheduleAutosave(); renderStatus(); };
+  $('stepDown').onclick = () => { state.step = Math.max(0, state.step - 1); scheduleAutosave(); renderStatus(); };
+  $('stepUp').onclick = () => { state.step = Math.min(16, state.step + 1); scheduleAutosave(); renderStatus(); };
 
-  $('bpmInput').onchange = () => player.msg({ type: 'speed', bpm: parseInt($('bpmInput').value, 10) || 125 });
-  $('speedInput').onchange = () => player.msg({ type: 'speed', speed: parseInt($('speedInput').value, 10) || 6 });
+  $('bpmInput').onchange = () => {
+    player.msg({ type: 'speed', bpm: parseInt($('bpmInput').value, 10) || 125 });
+    scheduleAutosave();
+  };
+  $('speedInput').onchange = () => {
+    player.msg({ type: 'speed', speed: parseInt($('speedInput').value, 10) || 6 });
+    scheduleAutosave();
+  };
 
-  $('songTitle').onchange = () => { state.song.title = $('songTitle').value.slice(0, 20); };
+  $('songTitle').oninput = () => {
+    state.song.title = $('songTitle').value.slice(0, 20);
+    scheduleAutosave();
+  };
 
   // ---- help modal -------------------------------------------------------------------
 
@@ -946,6 +1194,7 @@
     player.setMute(state.muted);
     renderAll();
     if (msg) setStatusMsg(msg);
+    scheduleAutosave();
   }
 
   $('btnNew').onclick = () => {
@@ -953,28 +1202,64 @@
     adoptSong(MOD.newSong(4), 'New song');
   };
 
-  $('btnLoad').onclick = () => $('fileInput').click();
-  $('fileInput').onchange = async e => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
+  function parseModuleBuffer(buf) {
+    const head = String.fromCharCode(...new Uint8Array(buf.slice(0, 4)));
+    if (head.startsWith('MMD')) {
+      const song = MED.parse(buf);
+      return { song, kind: song.medInfo || 'OctaMED' };
+    }
+    return { song: MOD.parse(buf), kind: 'ProTracker' };
+  }
+
+  async function loadModuleFile(file) {
     try {
       const buf = await file.arrayBuffer();
-      const head = String.fromCharCode(...new Uint8Array(buf.slice(0, 4)));
-      let song, kind;
-      if (head.startsWith('MMD')) {
-        song = MED.parse(buf);
-        kind = song.medInfo || 'OctaMED';
-      } else {
-        song = MOD.parse(buf);
-        kind = 'ProTracker';
-      }
+      const { song, kind } = parseModuleBuffer(buf);
       adoptSong(song, `Loaded "${song.title || file.name}" — ${song.channels}ch, ` +
         `${song.patterns.length} patterns (${kind})`);
     } catch (err) {
       alert('Could not load module: ' + err.message);
     }
+  }
+
+  $('btnLoad').onclick = () => $('fileInput').click();
+  $('fileInput').onchange = async e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    loadModuleFile(file);
   };
+
+  function dragHasFiles(e) {
+    return e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  }
+
+  window.addEventListener('dragenter', e => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    document.body.classList.add('dragging');
+  });
+
+  window.addEventListener('dragover', e => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    document.body.classList.add('dragging');
+  });
+
+  window.addEventListener('dragleave', e => {
+    if (e.relatedTarget) return;
+    document.body.classList.remove('dragging');
+  });
+
+  window.addEventListener('drop', e => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    document.body.classList.remove('dragging');
+    const files = Array.from(e.dataTransfer.files || []);
+    const moduleFile = files.find(file => /\.(mod|med|mmd)$/i.test(file.name)) || files[0];
+    if (moduleFile) loadModuleFile(moduleFile);
+  });
 
   $('btnSave').onclick = () => {
     const bytes = MOD.save(state.song);
@@ -1094,6 +1379,7 @@
 
   function sampleChanged() {
     player.sendSample(state.song, state.curSample);
+    scheduleAutosave();
     renderSamples(); renderSampleProps();
   }
 
@@ -1338,7 +1624,9 @@
 
   renderAll();
   drawScopes(null);
-  setStatusMsg('Demo song loaded — Space plays the pattern, Shift+Space the song, F1 for help.');
+  restoreAutosave().then(restored => {
+    if (!restored) setStatusMsg('Demo song loaded — Space plays the pattern, Shift+Space the song, F1 for help.');
+  });
 
   // console access for debugging / tinkering
   window.tracker = { player, state, MOD, MED };

@@ -1,0 +1,15 @@
+{
+  "name": "webtracker",
+  "version": "0.1.0",
+  "description": "Browser-based Amiga MOD tracker inspired by ProTracker and OctaMED.",
+  "license": "MIT",
+  "homepage": "https://ramonlinares.github.io/MusicTracker/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RamonLinares/MusicTracker.git"
+  },
+  "scripts": {
+    "serve": "python3 -m http.server 8642",
+    "test": "node tests/mod-roundtrip.test.js"
+  }
+}

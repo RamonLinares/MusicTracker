@@ -1,0 +1,30 @@
+name: Smoke
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run MOD round-trip tests
+        run: npm test
+
+      - name: Smoke test static assets
+        run: |
+          python3 -m http.server 8642 &
+          server_pid=$!
+          trap "kill $server_pid" EXIT
+          sleep 2
+          curl -fsS http://127.0.0.1:8642/ >/dev/null
+          curl -fsS http://127.0.0.1:8642/service-worker.js >/dev/null
+          curl -fsS http://127.0.0.1:8642/manifest.webmanifest >/dev/null

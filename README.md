@@ -48,6 +48,9 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   panning, global volume, and channels past 8 are dropped.
 - Saves as ProTracker-compatible MOD data. OctaMED synth concepts are playable
   after import but cannot be represented in saved MOD files.
+- Saves and loads native WebTracker projects (`.wtp`, JSON): a full-fidelity
+  container that keeps everything MOD cannot hold — MED synth instruments,
+  any channel count, initial tempo, and the Paula-mode setting.
 
 ## Features
 

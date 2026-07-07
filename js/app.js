@@ -260,6 +260,81 @@
     }
   }
 
+  // ---- project file format (.wtp) ------------------------------------------
+  // Full-fidelity JSON container reusing the autosave serializer: keeps what
+  // .MOD cannot hold (MED synth programs, 5-8 channels, initial tempo, Paula).
+
+  const PROJECT_FORMAT = 'webtracker-project';
+
+  function bytesToB64(view) {
+    const u8 = view instanceof Uint8Array
+      ? view
+      : new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+    let s = '';
+    for (let i = 0; i < u8.length; i += 0x8000) {
+      s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    }
+    return btoa(s);
+  }
+
+  function b64ToBytes(b64) {
+    const s = atob(String(b64 || ''));
+    const u8 = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i);
+    return u8;
+  }
+
+  function buildProjectJson() {
+    const snap = cloneSongForStorage(state.song);
+    const song = {
+      ...snap,
+      patterns: snap.patterns.map(bytesToB64),
+      samples: snap.samples.map(s => ({
+        ...s,
+        data: bytesToB64(s.data),
+        synth: s.synth ? {
+          ...s.synth,
+          voltbl: bytesToB64(s.synth.voltbl),
+          wftbl: bytesToB64(s.synth.wftbl),
+          waveforms: s.synth.waveforms.map(bytesToB64)
+        } : null
+      }))
+    };
+    return JSON.stringify({
+      format: PROJECT_FORMAT,
+      version: 1,
+      savedAt: new Date().toISOString(),
+      bpm: parseInt($('bpmInput').value, 10) || 125,
+      speed: parseInt($('speedInput').value, 10) || 6,
+      paula: state.paula,
+      song
+    });
+  }
+
+  function parseProjectJson(text) {
+    const proj = JSON.parse(text);
+    if (proj.format !== PROJECT_FORMAT || !proj.song) throw new Error('Not a WebTracker project file');
+    const raw = proj.song;
+    const saved = {
+      ...raw,
+      patterns: Array.isArray(raw.patterns) ? raw.patterns.map(b64ToBytes) : [],
+      samples: Array.isArray(raw.samples) ? raw.samples.map(s => ({
+        ...s,
+        data: b64ToBytes(s.data),
+        synth: s.synth ? {
+          ...s.synth,
+          voltbl: b64ToBytes(s.synth.voltbl),
+          wftbl: b64ToBytes(s.synth.wftbl),
+          waveforms: Array.isArray(s.synth.waveforms) ? s.synth.waveforms.map(b64ToBytes) : []
+        } : null
+      })) : []
+    };
+    const song = songFromStorage(saved);
+    if (proj.bpm) song.initBPM = clampNum(proj.bpm, 32, 255, 125);
+    if (proj.speed) song.initSpeed = clampNum(proj.speed, 1, 31, 6);
+    return { song, paula: typeof proj.paula === 'boolean' ? proj.paula : null };
+  }
+
   // ---- undo / redo ---------------------------------------------------------
 
   const undoStack = [], redoStack = [];
@@ -1218,6 +1293,20 @@
   async function loadModuleFile(file) {
     try {
       const buf = await file.arrayBuffer();
+      const head = new Uint8Array(buf.slice(0, 16));
+      let i = 0;
+      while (i < head.length && (head[i] === 32 || head[i] === 9 || head[i] === 10 || head[i] === 13)) i++;
+      if (head[i] === 0x7B) { // '{' — a WebTracker .wtp project
+        const { song, paula } = parseProjectJson(new TextDecoder().decode(buf));
+        adoptSong(song, `Loaded project "${song.title || file.name}" — ${song.channels}ch, ` +
+          `${song.patterns.length} patterns`);
+        if (paula !== null && paula !== state.paula) {
+          state.paula = paula;
+          player.msg({ type: 'paula', on: paula });
+          renderStatus();
+        }
+        return;
+      }
       const { song, kind } = parseModuleBuffer(buf);
       adoptSong(song, `Loaded "${song.title || file.name}" — ${song.channels}ch, ` +
         `${song.patterns.length} patterns (${kind})`);
@@ -1261,7 +1350,7 @@
     e.preventDefault();
     document.body.classList.remove('dragging');
     const files = Array.from(e.dataTransfer.files || []);
-    const moduleFile = files.find(file => /\.(mod|med|mmd|xm)$/i.test(file.name)) || files[0];
+    const moduleFile = files.find(file => /\.(mod|med|mmd|xm|wtp)$/i.test(file.name)) || files[0];
     if (moduleFile) loadModuleFile(moduleFile);
   });
 
@@ -1274,6 +1363,16 @@
     a.click();
     URL.revokeObjectURL(a.href);
     setStatusMsg('Saved ' + a.download + ' (ProTracker format)');
+  };
+
+  $('btnSaveProj').onclick = () => {
+    const blob = new Blob([buildProjectJson()], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (state.song.title.trim().replace(/[^\w\- ]/g, '') || 'untitled') + '.wtp';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    setStatusMsg('Saved ' + a.download + ' (full-fidelity WebTracker project)');
   };
 
   // ---- WAV export -----------------------------------------------------------------------
@@ -1633,5 +1732,6 @@
   });
 
   // console access for debugging / tinkering
-  window.tracker = { player, state, MOD, MED, XM };
+  window.tracker = { player, state, MOD, MED, XM,
+    project: { build: buildProjectJson, parse: parseProjectJson } };
 })();

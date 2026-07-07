@@ -9,12 +9,12 @@
 
 ## Later
 
-- Add a WebTracker project format for data that cannot be represented in MOD.
 - Expand import support further (S3M is the next candidate after XM).
 - Add more accessibility checks for keyboard and screen reader behavior.
 
 ## Done
 
+- Native WebTracker project format (.wtp) for full-fidelity save/load.
 - FastTracker II XM import with synthetic test coverage.
 
 - GitHub Pages deployment.

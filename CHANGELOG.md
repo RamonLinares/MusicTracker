@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added a native WebTracker project format (`.wtp`): full-fidelity save/load
+  keeping MED synths, channel count, tempo, and Paula mode.
+- Fixed autosave dropping MED synth command tables on restore.
+- Skipped service-worker registration on localhost so local development
+  always serves fresh code; production installs are unchanged.
 - Added FastTracker II `.XM` import (file picker and drag-and-drop): notes
   remapped to the MOD octave range, volume column folded into free effect
   slots, 16-bit and ping-pong samples converted, long patterns split.

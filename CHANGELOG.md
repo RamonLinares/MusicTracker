@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added microphone sampling (● Rec): records up to 15 s, resampled to the
+  Amiga C-2 rate straight into the current sample slot.
+- Added classic sample tools: wave clipboard Copy / Mix-paste, one-octave
+  resampling (+8ve/−8ve), Boost, and a low-pass Filter.
 - Added MIDI keyboard input (MIDI toggle): notes jam live on the cursor
   channel, chords spread across channels, and in record mode velocity is
   written as a Cxx volume command when the effect slot is free.

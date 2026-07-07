@@ -375,3 +375,5 @@ button.mini { padding: 3px 6px; font-size: 11px; flex: 1; }
 .fx-ref td { padding: 2px 0; }
 .fx-cmd { color: var(--accent); padding-right: 14px !important; font-weight: bold; }
 .fx-name { color: #d6e2f5; padding-right: 14px !important; white-space: nowrap; }
+
+button.rec { background: #d04038; color: #fff; border-color: #ff8078 #701812 #701812 #ff8078; }

@@ -111,6 +111,14 @@
         <button id="wvSil" class="mini" title="Silence selection (or all)">Sil</button>
         <button id="wvLoop" class="mini" title="Set loop points from selection">Loop=Sel</button>
       </div>
+      <div class="wave-tools">
+        <button id="wvCopy" class="mini" title="Copy selection (or all) to the wave clipboard">Copy</button>
+        <button id="wvMix" class="mini" title="Mix the wave clipboard into the sample at the selection start (50/50)">Mix</button>
+        <button id="wvOctUp" class="mini" title="Resample one octave up — halves the length">+8ve</button>
+        <button id="wvOctDown" class="mini" title="Resample one octave down — doubles the length">−8ve</button>
+        <button id="wvBoost" class="mini" title="Amplify 140% (clips)">Boost</button>
+        <button id="wvLPF" class="mini" title="Low-pass filter (3-tap average)">LPF</button>
+      </div>
       <div class="field"><label>Name</label><input type="text" id="smpName" maxlength="22" spellcheck="false"></div>
       <div class="field-row">
         <div class="field"><label>Vol</label><input type="number" id="smpVol" min="0" max="64"></div>
@@ -122,6 +130,7 @@
       </div>
       <div class="field-row">
         <button id="btnSmpImport" title="Import WAV/MP3/etc as 8-bit sample">Import audio</button>
+        <button id="btnSmpRec" title="Record a sample from the microphone (max 15 s)">● Rec</button>
         <button id="btnSmpClear">Clear</button>
         <input type="file" id="wavInput" accept="audio/*" hidden>
       </div>

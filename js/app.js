@@ -1730,40 +1730,87 @@
   };
 
   $('btnSmpImport').onclick = () => $('wavInput').click();
+  // decode any audio, downmix, resample to the Amiga C-2 rate (PAL: 8287 Hz)
+  // and store as signed 8-bit in the current sample slot
+  async function importAudioBuffer(buf, name) {
+    await player.ensure();
+    const audio = await player.ctx.decodeAudioData(buf);
+    const mono = new Float32Array(audio.length);
+    for (let ch = 0; ch < audio.numberOfChannels; ch++) {
+      const d = audio.getChannelData(ch);
+      for (let i = 0; i < d.length; i++) mono[i] += d[i] / audio.numberOfChannels;
+    }
+    const RATE = 8287;
+    const outLen = Math.min(131070, Math.floor(mono.length * RATE / audio.sampleRate)) & ~1;
+    const out = new Int8Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+      const src = i * audio.sampleRate / RATE;
+      const p = src | 0, frac = src - p;
+      const v = mono[p] + ((mono[p + 1] || 0) - mono[p]) * frac;
+      out[i] = Math.max(-127, Math.min(127, Math.round(v * 127)));
+    }
+    pushUndo('sample', state.curSample);
+    const s = state.song.samples[state.curSample];
+    s.data = out;
+    s.loopStart = 0; s.loopLen = 0;
+    s.volume = 64;
+    delete s.synth; // replacing a synth slot with PCM
+    if (!s.name && name) s.name = name.slice(0, 22);
+    state.wave.a = state.wave.b = -1;
+    sampleChanged();
+    return outLen;
+  }
+
   $('wavInput').onchange = async e => {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
     try {
-      await player.ensure();
       const buf = await file.arrayBuffer();
-      const audio = await player.ctx.decodeAudioData(buf);
-      const mono = new Float32Array(audio.length);
-      for (let ch = 0; ch < audio.numberOfChannels; ch++) {
-        const d = audio.getChannelData(ch);
-        for (let i = 0; i < d.length; i++) mono[i] += d[i] / audio.numberOfChannels;
-      }
-      // resample to Amiga C-2 rate (PAL: 8287 Hz) and convert to signed 8-bit
-      const RATE = 8287;
-      const outLen = Math.min(131070, Math.floor(mono.length * RATE / audio.sampleRate)) & ~1;
-      const out = new Int8Array(outLen);
-      for (let i = 0; i < outLen; i++) {
-        const src = i * audio.sampleRate / RATE;
-        const p = src | 0, frac = src - p;
-        const v = mono[p] + ((mono[p + 1] || 0) - mono[p]) * frac;
-        out[i] = Math.max(-127, Math.min(127, Math.round(v * 127)));
-      }
-      pushUndo('sample', state.curSample);
-      const s = state.song.samples[state.curSample];
-      s.data = out;
-      s.loopStart = 0; s.loopLen = 0;
-      s.volume = 64;
-      if (!s.name) s.name = file.name.replace(/\.\w+$/, '').slice(0, 22);
-      state.wave.a = state.wave.b = -1;
-      sampleChanged();
-      setStatusMsg(`Imported ${file.name} → ${outLen} bytes @ 8287 Hz (plays original pitch on C-2)`);
+      const len = await importAudioBuffer(buf, file.name.replace(/\.\w+$/, ''));
+      setStatusMsg(`Imported ${file.name} → ${len} bytes @ 8287 Hz (plays original pitch on C-2)`);
     } catch (err) {
       alert('Could not import audio: ' + err.message);
+    }
+  };
+
+  // ---- microphone sampling ---------------------------------------------------
+
+  let recorder = null;
+
+  $('btnSmpRec').onclick = async () => {
+    if (recorder) { recorder.stop(); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatusMsg('Microphone recording is not supported in this browser');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks = [];
+      recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(tr => tr.stop());
+        recorder = null;
+        $('btnSmpRec').classList.remove('rec');
+        $('btnSmpRec').textContent = '● Rec';
+        try {
+          const buf = await new Blob(chunks).arrayBuffer();
+          const len = await importAudioBuffer(buf, 'recording');
+          setStatusMsg(`Recorded ${len} bytes @ 8287 Hz into sample ` +
+            (state.curSample + 1).toString(16).toUpperCase().padStart(2, '0'));
+        } catch (err) {
+          setStatusMsg('Could not decode recording: ' + err.message);
+        }
+      };
+      recorder.start();
+      $('btnSmpRec').classList.add('rec');
+      $('btnSmpRec').textContent = '■ Stop';
+      setStatusMsg('Recording from microphone — click ■ Stop to finish (auto-stops at 15 s)');
+      setTimeout(() => { if (recorder && recorder.state === 'recording') recorder.stop(); }, 15000);
+    } catch (err) {
+      recorder = null;
+      setStatusMsg('Microphone unavailable: ' + err.message);
     }
   };
 
@@ -1918,6 +1965,75 @@
     sampleChanged();
     setStatusMsg(`Loop set: ${s.loopStart} +${s.loopLen}`);
   };
+
+  // classic PT-style tools: wave clipboard, mix-paste, resample, boost, filter
+
+  let waveClip = null;
+
+  $('wvCopy').onclick = () => {
+    const s = state.song.samples[state.curSample];
+    if (!s.data.length) { setStatusMsg('Sample is empty'); return; }
+    const r = waveSelRange() || [0, s.data.length];
+    waveClip = s.data.slice(r[0], r[1]);
+    setStatusMsg(`Copied ${waveClip.length} bytes to the wave clipboard`);
+  };
+
+  $('wvMix').onclick = () => {
+    if (!waveClip || !waveClip.length) { setStatusMsg('Wave clipboard is empty — use Copy first'); return; }
+    waveOp((s, a) => {
+      const n = Math.min(waveClip.length, s.data.length - a);
+      for (let i = 0; i < n; i++) s.data[a + i] = (s.data[a + i] + waveClip[i]) >> 1;
+      setStatusMsg(`Mixed ${n} bytes at offset ${a} (50/50)`);
+    });
+  };
+
+  $('wvOctUp').onclick = () => {
+    const s = state.song.samples[state.curSample];
+    if (!s.data.length) { setStatusMsg('Sample is empty'); return; }
+    pushUndo('sample', state.curSample);
+    const out = new Int8Array(s.data.length >> 1);
+    for (let i = 0; i < out.length; i++) out[i] = s.data[i * 2];
+    s.data = out;
+    s.loopStart = (s.loopStart >> 1) & ~1;
+    s.loopLen = s.loopLen > 2 ? Math.max(2, (s.loopLen >> 1) & ~1) : 0;
+    state.wave.a = state.wave.b = -1;
+    sampleChanged();
+    setStatusMsg('Resampled one octave up (half length) — same key now sounds an octave higher');
+  };
+
+  $('wvOctDown').onclick = () => {
+    const s = state.song.samples[state.curSample];
+    if (!s.data.length) { setStatusMsg('Sample is empty'); return; }
+    if (s.data.length * 2 > 131070) { setStatusMsg('Too long — result would exceed the 128 KB sample limit'); return; }
+    pushUndo('sample', state.curSample);
+    const out = new Int8Array(s.data.length * 2);
+    for (let i = 0; i < s.data.length; i++) {
+      const nxt = i + 1 < s.data.length ? s.data[i + 1] : s.data[i];
+      out[i * 2] = s.data[i];
+      out[i * 2 + 1] = (s.data[i] + nxt) >> 1;
+    }
+    s.data = out;
+    s.loopStart *= 2;
+    s.loopLen *= 2;
+    state.wave.a = state.wave.b = -1;
+    sampleChanged();
+    setStatusMsg('Resampled one octave down (double length) — same key now sounds an octave lower');
+  };
+
+  $('wvBoost').onclick = () => waveOp((s, a, b) => {
+    for (let i = a; i < b; i++) {
+      s.data[i] = Math.max(-127, Math.min(127, Math.round(s.data[i] * 1.4)));
+    }
+  });
+
+  $('wvLPF').onclick = () => waveOp((s, a, b) => {
+    const src = s.data.slice();
+    for (let i = a; i < b; i++) {
+      const p = i > 0 ? src[i - 1] : src[i];
+      const n = i + 1 < src.length ? src[i + 1] : src[i];
+      s.data[i] = Math.round((p + src[i] + n) / 3);
+    }
+  });
 
   // ---- boot ----------------------------------------------------------------------------
 

@@ -86,7 +86,11 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   audio file (WAV/MP3/…) resampled to the Amiga C-2 rate (8287 Hz).
 - **Waveform editor** — drag to select a region; trim, cut, fade in/out,
   normalize, reverse, silence, set loop from selection; freehand **draw mode**
-  (drawing on an empty slot creates a looping chip waveform).
+  (drawing on an empty slot creates a looping chip waveform); wave clipboard
+  **Copy / Mix-paste**, one-octave resampling (**+8ve/−8ve**), **Boost**, and
+  a low-pass **Filter** in the classic ProTracker style.
+- **Microphone sampling** — the ● Rec button records from the mic (up to
+  15 s) and converts straight to 8-bit at the Amiga C-2 rate.
 - **Song editor** — order list (up to 128 positions), insert/delete positions,
   per-position pattern assignment, oscilloscopes per channel, **4–8 channels**
   (CH −/+ in the order bar; 4-channel songs save as `M.K.`, others as

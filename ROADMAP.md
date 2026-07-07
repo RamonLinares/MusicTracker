@@ -3,7 +3,6 @@
 ## Near Term
 
 - Add more browser smoke checks for playback, editing, and file import flows.
-- Add an in-app tracker effect reference for ProTracker command lookup.
 - Improve first-run onboarding without interrupting experienced tracker users.
 - Add exportable pattern images or short clips for sharing songs online.
 
@@ -14,9 +13,9 @@
 
 ## Done
 
+- In-app effect reference with live cursor hints.
 - Native WebTracker project format (.wtp) for full-fidelity save/load.
 - FastTracker II XM import with synthetic test coverage.
-
 - GitHub Pages deployment.
 - MIT license.
 - PWA manifest and offline service worker.

@@ -360,3 +360,18 @@ button.mini { padding: 3px 6px; font-size: 11px; flex: 1; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--panel2); border: 1px solid var(--bevel-lo); }
 ::-webkit-scrollbar-thumb:hover { background: var(--bevel-hi); }
+
+/* ---- effect reference ---- */
+
+.fx-hint {
+  color: var(--cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 2;
+}
+
+.fx-ref { column-count: 1; }
+.fx-ref td { padding: 2px 0; }
+.fx-cmd { color: var(--accent); padding-right: 14px !important; font-weight: bold; }
+.fx-name { color: #d6e2f5; padding-right: 14px !important; white-space: nowrap; }

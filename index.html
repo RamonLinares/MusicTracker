@@ -66,6 +66,7 @@
     <button id="editBtn" class="toggle" title="Edit mode: keys write into the pattern; while playing, notes are recorded live">EDIT</button>
     <button id="followBtn" class="toggle" title="View follows playback">FOLLOW</button>
     <button id="paulaBtn" class="toggle" title="Paula mode: nearest-neighbour 8-bit output + Amiga RC filter; E0x toggles the LED filter">PAULA</button>
+    <button id="btnFxRef" title="Effect command reference (F2)">FX</button>
     <button id="btnHelp" title="Keyboard reference (F1)">?</button>
   </div>
 </header>
@@ -137,14 +138,23 @@
 
 <footer>
   <div id="statusMsg"></div>
+  <div id="fxHint" class="fx-hint"></div>
   <div class="status-right">
     POS <b id="stPos">00/01</b> · PAT <b id="stPat">00</b> · ROW <b id="stRow">00</b>
   </div>
   <div class="keys">
     <b>Z–M / Q–P</b> notes · <b>Space</b> play/stop · <b>Shift+arrows</b> select ·
-    <b>⌘C/X/V</b> copy/cut/paste · <b>⌘Z</b> undo · <b>F1</b> help
+    <b>⌘C/X/V</b> copy/cut/paste · <b>⌘Z</b> undo · <b>F1</b> help · <b>F2</b> FX
   </div>
 </footer>
+
+<div id="fxModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>Effect commands</h3>
+    <table class="fx-ref"><tbody id="fxTable"></tbody></table>
+    <button id="fxClose">Close</button>
+  </div>
+</div>
 
 <div id="helpModal" class="modal hidden">
   <div class="modal-box">
@@ -157,6 +167,7 @@
         <tr><td>Esc</td><td>clear selection / stop</td></tr>
         <tr><td>EDIT while playing</td><td>record mode — note keys write into the pattern, quantized to the nearest row</td></tr>
         <tr><td>PAULA toggle</td><td>Amiga sound: nearest-neighbour + RC filter, E0x LED filter</td></tr>
+        <tr><td>F2</td><td>effect command reference; the footer explains the effect under the cursor</td></tr>
         <tr><th colspan="2">Notes</th></tr>
         <tr><td>Z–M , L . ; /</td><td>lower octave (ProTracker layout)</td></tr>
         <tr><td>Q–P with 2 3 5 6 7 9 0</td><td>upper octave</td></tr>

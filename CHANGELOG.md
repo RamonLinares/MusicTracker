@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added an in-app effect reference (FX button / F2) and a live footer hint
+  that decodes the effect under the cursor (e.g. "A02 — volume slide −2/tick").
 - Added a native WebTracker project format (`.wtp`): full-fidelity save/load
   keeping MED synths, channel count, tempo, and Paula mode.
 - Fixed autosave dropping MED synth command tables on restore.

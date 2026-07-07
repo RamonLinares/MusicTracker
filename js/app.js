@@ -585,6 +585,107 @@
     $('followBtn').classList.toggle('active', state.follow);
     $('paulaBtn').classList.toggle('active', state.paula);
     $('chDisp').textContent = state.song.channels;
+    renderFxHint();
+  }
+
+  // ---- effect reference -----------------------------------------------------
+
+  // [command, name, description] — also drives the FX reference modal
+  const FX_REF = [
+    ['0xy', 'Arpeggio', 'rapidly cycle base note, +x and +y semitones'],
+    ['1xx', 'Portamento up', 'slide pitch up by xx every tick'],
+    ['2xx', 'Portamento down', 'slide pitch down by xx every tick'],
+    ['3xx', 'Tone portamento', 'slide toward the new note at speed xx (no retrigger)'],
+    ['4xy', 'Vibrato', 'pitch wobble — speed x, depth y'],
+    ['5xy', 'Porta + vol slide', 'continue tone portamento, volume slide up x / down y'],
+    ['6xy', 'Vibrato + vol slide', 'continue vibrato, volume slide up x / down y'],
+    ['7xy', 'Tremolo', 'volume wobble — speed x, depth y'],
+    ['9xx', 'Sample offset', 'start the sample xx × 256 bytes in'],
+    ['Axy', 'Volume slide', 'up x / down y every tick'],
+    ['Bxx', 'Position jump', 'jump to song position xx'],
+    ['Cxx', 'Set volume', '00–40 hex (0–64)'],
+    ['Dxx', 'Pattern break', 'go to row xx (decimal-coded) of the next position'],
+    ['E0x', 'LED filter', 'x=0 filter on, x=1 off (audible in Paula mode)'],
+    ['E1x', 'Fine porta up', 'slide pitch up by x, once'],
+    ['E2x', 'Fine porta down', 'slide pitch down by x, once'],
+    ['E3x', 'Glissando control', 'x=1: tone portamento snaps to semitones'],
+    ['E4x', 'Vibrato waveform', '0 sine · 1 ramp · 2 square · 3 random (+4: no retrig)'],
+    ['E5x', 'Set finetune', '0–7 up, 8–F down (−8…−1)'],
+    ['E6x', 'Pattern loop', 'x=0 mark start · x=n repeat section n times'],
+    ['E7x', 'Tremolo waveform', 'same values as E4x'],
+    ['E9x', 'Retrigger note', 'restart the sample every x ticks'],
+    ['EAx', 'Fine volume up', 'add x to volume, once'],
+    ['EBx', 'Fine volume down', 'subtract x from volume, once'],
+    ['ECx', 'Note cut', 'set volume to 0 at tick x'],
+    ['EDx', 'Note delay', 'trigger the note at tick x'],
+    ['EEx', 'Pattern delay', 'repeat this row x extra times'],
+    ['Fxx', 'Speed / tempo', '01–1F: ticks per row · 20–FF: BPM']
+  ];
+
+  const WAVE_NAMES = ['sine', 'ramp down', 'square', 'random'];
+
+  function describeFx(fx, pm) {
+    const x = pm >> 4, y = pm & 15;
+    switch (fx) {
+      case 0x0: return pm ? `arpeggio — note, +${x}, +${y} semitones` : null;
+      case 0x1: return `portamento up, ${pm}/tick`;
+      case 0x2: return `portamento down, ${pm}/tick`;
+      case 0x3: return `tone portamento at speed ${pm || 'last'}`;
+      case 0x4: return `vibrato — speed ${x || 'last'}, depth ${y || 'last'}`;
+      case 0x5: return `tone porta + volume slide ${x ? '+' + x : '−' + y}/tick`;
+      case 0x6: return `vibrato + volume slide ${x ? '+' + x : '−' + y}/tick`;
+      case 0x7: return `tremolo — speed ${x || 'last'}, depth ${y || 'last'}`;
+      case 0x9: return `sample offset ${pm ? pm * 256 : 'last'} bytes`;
+      case 0xA: return `volume slide ${x ? '+' + x : '−' + y}/tick`;
+      case 0xB: return `jump to position ${String(pm).padStart(2, '0')}`;
+      case 0xC: return `set volume ${Math.min(64, pm)}/64`;
+      case 0xD: return `pattern break to row ${Math.min(63, x * 10 + y)}`;
+      case 0xF: return pm === 0 ? 'F00 — ignored'
+        : pm < 32 ? `set speed ${pm} ticks/row` : `set tempo ${pm} BPM`;
+      case 0xE:
+        switch (x) {
+          case 0x0: return `LED filter ${(y & 1) === 0 ? 'on' : 'off'} (Paula mode)`;
+          case 0x1: return `fine porta up ${y}`;
+          case 0x2: return `fine porta down ${y}`;
+          case 0x3: return `glissando ${y ? 'on — porta snaps to semitones' : 'off'}`;
+          case 0x4: return `vibrato waveform: ${WAVE_NAMES[y & 3]}${y & 4 ? ', no retrig' : ''}`;
+          case 0x5: return `set finetune ${y < 8 ? '+' + y : y - 16}`;
+          case 0x6: return y ? `loop section ${y} times` : 'set loop start';
+          case 0x7: return `tremolo waveform: ${WAVE_NAMES[y & 3]}${y & 4 ? ', no retrig' : ''}`;
+          case 0x9: return y ? `retrigger every ${y} ticks` : 'E90 — no retrigger';
+          case 0xA: return `fine volume up ${y}`;
+          case 0xB: return `fine volume down ${y}`;
+          case 0xC: return y ? `note cut at tick ${y}` : 'note cut immediately';
+          case 0xD: return `note delay until tick ${y}`;
+          case 0xE: return `pattern delay — repeat row ${y}×`;
+          default: return null;
+        }
+      default: return null;
+    }
+  }
+
+  function renderFxHint() {
+    const [, , f, pm] = MOD.cellGet(state.song, curPattern(), state.cursor.row, state.cursor.ch);
+    let txt = '';
+    if (f || pm) {
+      const desc = describeFx(f, pm);
+      const cmd = f.toString(16).toUpperCase() + pm.toString(16).toUpperCase().padStart(2, '0');
+      txt = desc ? `${cmd} — ${desc}` : `${cmd} — unknown effect`;
+    } else if (state.cursor.col >= 3) {
+      txt = 'effect column — type hex digits, F2 for the command reference';
+    }
+    $('fxHint').textContent = txt;
+  }
+
+  function renderFxModal() {
+    const box = $('fxTable');
+    if (box.dataset.built) return;
+    box.dataset.built = '1';
+    for (const [cmd, name, desc] of FX_REF) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="fx-cmd">${cmd}</td><td class="fx-name">${name}</td><td>${desc}</td>`;
+      box.appendChild(tr);
+    }
   }
 
   function renderAll() {
@@ -929,11 +1030,18 @@
     if (e.target.tagName === 'INPUT' &&
         (e.target.type === 'text' || e.target.type === 'number')) return;
 
-    // help modal captures everything except its own close keys
+    // modals capture everything except their own close keys
     if (!$('helpModal').classList.contains('hidden')) {
       if (e.code === 'Escape' || e.code === 'F1' || e.key === '?') {
         e.preventDefault();
         toggleHelp(false);
+      }
+      return;
+    }
+    if (!$('fxModal').classList.contains('hidden')) {
+      if (e.code === 'Escape' || e.code === 'F2') {
+        e.preventDefault();
+        toggleFxRef(false);
       }
       return;
     }
@@ -976,6 +1084,7 @@
       return;
     }
     if (code === 'F1') { e.preventDefault(); toggleHelp(true); return; }
+    if (code === 'F2') { e.preventDefault(); toggleFxRef(true); return; }
 
     // navigation (shift extends the selection)
     switch (code) {
@@ -1250,6 +1359,16 @@
   $('helpClose').onclick = () => toggleHelp(false);
   $('helpModal').addEventListener('mousedown', e => {
     if (e.target === $('helpModal')) toggleHelp(false);
+  });
+
+  function toggleFxRef(show) {
+    if (show) renderFxModal();
+    $('fxModal').classList.toggle('hidden', !show);
+  }
+  $('btnFxRef').onclick = () => toggleFxRef(true);
+  $('fxClose').onclick = () => toggleFxRef(false);
+  $('fxModal').addEventListener('mousedown', e => {
+    if (e.target === $('fxModal')) toggleFxRef(false);
   });
 
   // ---- file I/O -----------------------------------------------------------------------

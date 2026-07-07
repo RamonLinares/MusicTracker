@@ -10,10 +10,12 @@
 ## Later
 
 - Add a WebTracker project format for data that cannot be represented in MOD.
-- Expand import support after the MOD and MED paths have stronger fixtures.
+- Expand import support further (S3M is the next candidate after XM).
 - Add more accessibility checks for keyboard and screen reader behavior.
 
 ## Done
+
+- FastTracker II XM import with synthetic test coverage.
 
 - GitHub Pages deployment.
 - MIT license.

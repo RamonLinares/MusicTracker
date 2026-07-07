@@ -41,6 +41,11 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   modules.
 - Loads OctaMED MMD0/MMD1 modules and converts them into the internal song
   model.
+- Loads FastTracker II `.XM` modules: notes are remapped into the MOD octave
+  range (honoring each sample's relative note), the volume column is folded
+  into free effect slots, 16-bit and ping-pong-looped samples are converted,
+  and patterns longer than 64 rows are split into chained patterns. Envelopes,
+  panning, global volume, and channels past 8 are dropped.
 - Saves as ProTracker-compatible MOD data. OctaMED synth concepts are playable
   after import but cannot be represented in saved MOD files.
 
@@ -123,6 +128,7 @@ Press **F1** in the app for the full reference.
 - `index.html`, `css/style.css` — UI shell
 - `js/mod.js` — ProTracker MOD parser/writer, note tables, demo song
 - `js/med.js` — OctaMED MMD0/MMD1 loader
+- `js/xm.js` — FastTracker II XM loader
 - `js/worklet.js` — replayer + mixer (audio thread)
 - `js/player.js` — main-thread AudioWorklet wrapper
 - `js/patternview.js` — canvas pattern editor

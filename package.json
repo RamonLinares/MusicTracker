@@ -10,6 +10,6 @@
   },
   "scripts": {
     "serve": "python3 -m http.server 8642",
-    "test": "node tests/mod-roundtrip.test.js"
+    "test": "node tests/mod-roundtrip.test.js && node tests/xm-import.test.js"
   }
 }

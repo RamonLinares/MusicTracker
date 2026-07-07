@@ -1203,10 +1203,14 @@
   };
 
   function parseModuleBuffer(buf) {
-    const head = String.fromCharCode(...new Uint8Array(buf.slice(0, 4)));
+    const head = String.fromCharCode(...new Uint8Array(buf.slice(0, 17)));
     if (head.startsWith('MMD')) {
       const song = MED.parse(buf);
       return { song, kind: song.medInfo || 'OctaMED' };
+    }
+    if (head === 'Extended Module: ') {
+      const song = XM.parse(buf);
+      return { song, kind: song.xmInfo || 'FastTracker II' };
     }
     return { song: MOD.parse(buf), kind: 'ProTracker' };
   }
@@ -1257,7 +1261,7 @@
     e.preventDefault();
     document.body.classList.remove('dragging');
     const files = Array.from(e.dataTransfer.files || []);
-    const moduleFile = files.find(file => /\.(mod|med|mmd)$/i.test(file.name)) || files[0];
+    const moduleFile = files.find(file => /\.(mod|med|mmd|xm)$/i.test(file.name)) || files[0];
     if (moduleFile) loadModuleFile(moduleFile);
   });
 
@@ -1629,5 +1633,5 @@
   });
 
   // console access for debugging / tinkering
-  window.tracker = { player, state, MOD, MED };
+  window.tracker = { player, state, MOD, MED, XM };
 })();

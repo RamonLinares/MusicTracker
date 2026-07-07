@@ -1,7 +1,7 @@
 /* WebTracker app shell cache for offline use. */
 'use strict';
 
-const CACHE_NAME = 'webtracker-v2';
+const CACHE_NAME = 'webtracker-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const APP_SHELL = [
   './js/app.js',
   './js/med.js',
   './js/mod.js',
+  './js/xm.js',
   './js/patternview.js',
   './js/player.js',
   './js/pwa.js',

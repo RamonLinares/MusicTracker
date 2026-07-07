@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added FastTracker II `.XM` import (file picker and drag-and-drop): notes
+  remapped to the MOD octave range, volume column folded into free effect
+  slots, 16-bit and ping-pong samples converted, long patterns split.
+- Added synthetic XM import tests to the test suite.
 - Added MIT license metadata.
 - Added PWA manifest, app icons, favicon, and offline app-shell caching.
 - Added autosave and session recovery using IndexedDB.

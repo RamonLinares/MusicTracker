@@ -2,7 +2,6 @@
 
 ## Near Term
 
-- Add more browser smoke checks for playback, editing, and file import flows.
 - Improve first-run onboarding without interrupting experienced tracker users.
 - Add exportable pattern images or short clips for sharing songs online.
 
@@ -13,6 +12,7 @@
 
 ## Done
 
+- Playwright browser smoke test covering playback, editing, undo and import.
 - In-app effect reference with live cursor hints.
 - Native WebTracker project format (.wtp) for full-fidelity save/load.
 - FastTracker II XM import with synthetic test coverage.

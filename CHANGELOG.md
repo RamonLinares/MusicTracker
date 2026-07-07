@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a Playwright browser smoke test (playback, editing, undo, drag-and-drop
+  import, clean console) that runs in CI alongside the unit tests.
 - Added microphone sampling (● Rec): records up to 15 s, resampled to the
   Amiga C-2 rate straight into the current sample slot.
 - Added classic sample tools: wave clipboard Copy / Mix-paste, one-octave

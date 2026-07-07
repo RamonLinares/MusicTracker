@@ -1,7 +1,7 @@
 /* WebTracker app shell cache for offline use. */
 'use strict';
 
-const CACHE_NAME = 'webtracker-v7';
+const CACHE_NAME = 'webtracker-v8';
 const APP_SHELL = [
   './',
   './index.html',

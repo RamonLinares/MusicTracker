@@ -99,6 +99,24 @@ try {
   });
   assert.match(loaded, /Loaded "web chiptune"/);
 
+  // pattern PNG export produces a real download
+  const [pngDownload] = await Promise.all([
+    page.waitForEvent('download', { timeout: 10000 }),
+    page.click('#btnExportPng')
+  ]);
+  assert.match(pngDownload.suggestedFilename(), /-pattern00\.png$/);
+
+  // pattern clip export renders one pass of the pattern to WAV
+  const [wavDownload] = await Promise.all([
+    page.waitForEvent('download', { timeout: 30000 }),
+    page.click('#btnExportClip')
+  ]);
+  assert.match(wavDownload.suggestedFilename(), /-pattern00\.wav$/);
+  const wavPath = await wavDownload.path();
+  const wavBytes = fs.readFileSync(wavPath);
+  assert.equal(wavBytes.subarray(0, 4).toString(), 'RIFF');
+  assert.ok(wavBytes.length > 8 * 44100, 'clip should be roughly one pattern long (~8s of stereo audio)');
+
   assert.deepEqual(errors, [], 'console should stay clean');
   console.log('Browser smoke test passed');
 } catch (err) {

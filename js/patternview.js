@@ -195,5 +195,61 @@ const PatternView = (() => {
     return { rowNumW: ROWNUM_W, cellW: cellW() };
   }
 
-  return { draw, hitTest, channelHeaderMetrics, ROWH };
+  /* render a full 64-row pattern snapshot (for PNG export), 2x scale */
+  function renderFull(canvas, song, patternIndex, label) {
+    const ctx = canvas.getContext('2d');
+    measure(ctx);
+    const channels = song.channels;
+    const w = totalW(channels);
+    const titleH = label ? 24 : 0;
+    const headerH = 22;
+    const h = titleH + headerH + 64 * ROWH + 6;
+    const scale = 2;
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.font = FONT;
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = CLR.bg;
+    ctx.fillRect(0, 0, w, h);
+
+    if (label) {
+      ctx.fillStyle = '#9fb4d6';
+      ctx.fillText(label, 8, titleH / 2 + 2);
+    }
+    const cw = cellW();
+    ctx.fillStyle = CLR.barBg;
+    ctx.fillRect(0, titleH, w, headerH);
+    ctx.fillStyle = CLR.ins;
+    for (let ch = 0; ch < channels; ch++) {
+      ctx.fillText('CH ' + (ch + 1), ROWNUM_W + ch * cw + PAD, titleH + headerH / 2);
+    }
+
+    const pd = song.patterns[patternIndex];
+    const top = titleH + headerH;
+    for (let r = 0; r < 64; r++) {
+      const y = top + r * ROWH;
+      if (r % 16 === 0) { ctx.fillStyle = CLR.barBg; ctx.fillRect(0, y, w, ROWH); }
+      else if (r % 4 === 0) { ctx.fillStyle = CLR.beatBg; ctx.fillRect(0, y, w, ROWH); }
+      ctx.fillStyle = r % 4 === 0 ? CLR.rowNumBeat : CLR.rowNum;
+      ctx.fillText(String(r).padStart(2, '0'), 8, y + ROWH / 2);
+      if (!pd) continue;
+      for (let ch = 0; ch < channels; ch++) {
+        const x0 = ROWNUM_W + ch * cw + PAD;
+        const t = cellText(pd, channels, r, ch);
+        ctx.fillStyle = t.hasNote ? CLR.note : CLR.noteEmpty;
+        ctx.fillText(t.note, x0, y + ROWH / 2);
+        ctx.fillStyle = t.hasIns ? CLR.ins : CLR.noteEmpty;
+        ctx.fillText(t.ins, x0 + 4 * charW, y + ROWH / 2);
+        ctx.fillStyle = t.hasFx ? CLR.fx : CLR.fxEmpty;
+        ctx.fillText(t.fx, x0 + 7 * charW, y + ROWH / 2);
+      }
+    }
+    ctx.fillStyle = CLR.sep;
+    for (let ch = 0; ch <= channels; ch++) {
+      ctx.fillRect(ROWNUM_W + ch * cw - (ch ? 1 : 0), titleH, 1, h - titleH);
+    }
+  }
+
+  return { draw, hitTest, channelHeaderMetrics, renderFull, ROWH };
 })();

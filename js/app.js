@@ -1645,17 +1645,28 @@
     return b.buffer;
   }
 
-  $('btnExport').onclick = async () => {
-    const btn = $('btnExport');
+  function downloadBlob(blob, filename) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return filename;
+  }
+
+  function songFilename(ext) {
+    return (state.song.title.trim().replace(/[^\w\- ]/g, '') || 'untitled') + ext;
+  }
+
+  async function renderSongToWav(btn, { pos, patternMode, duration, filename }) {
     if (btn.disabled) return;
     const speed = parseInt($('speedInput').value, 10) || 6;
     const bpm = parseInt($('bpmInput').value, 10) || 125;
-    const dur = simulateDuration(state.song, speed, bpm) + 1;
     btn.disabled = true;
-    setStatusMsg(`Rendering ${dur.toFixed(1)}s of audio…`);
+    setStatusMsg(`Rendering ${duration.toFixed(1)}s of audio…`);
     try {
       const sr = 44100;
-      const ctx = new OfflineAudioContext(2, Math.ceil(dur * sr), sr);
+      const ctx = new OfflineAudioContext(2, Math.ceil(duration * sr), sr);
       await ctx.audioWorklet.addModule('js/worklet.js');
       // song + transport go via processorOptions: port messages are not
       // reliably delivered before offline rendering starts
@@ -1665,23 +1676,52 @@
           song: Player.serializeSong(state.song),
           mute: state.muted.slice(),
           paula: state.paula,
-          play: { pos: 0, row: 0, patternMode: false, speed, bpm }
+          play: { pos, row: 0, patternMode, speed, bpm }
         }
       });
       node.connect(ctx.destination);
       const rendered = await ctx.startRendering();
-      const blob = new Blob([encodeWav(rendered)], { type: 'audio/wav' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = (state.song.title.trim().replace(/[^\w\- ]/g, '') || 'untitled') + '.wav';
-      a.click();
-      URL.revokeObjectURL(a.href);
-      setStatusMsg(`Exported ${a.download} (${dur.toFixed(1)}s, 44.1 kHz 16-bit stereo)`);
+      const name = downloadBlob(new Blob([encodeWav(rendered)], { type: 'audio/wav' }), filename);
+      setStatusMsg(`Exported ${name} (${duration.toFixed(1)}s, 44.1 kHz 16-bit stereo)`);
     } catch (err) {
       setStatusMsg('WAV export failed: ' + err.message);
     } finally {
       btn.disabled = false;
     }
+  }
+
+  $('btnExport').onclick = () => {
+    const speed = parseInt($('speedInput').value, 10) || 6;
+    const bpm = parseInt($('bpmInput').value, 10) || 125;
+    renderSongToWav($('btnExport'), {
+      pos: 0, patternMode: false,
+      duration: simulateDuration(state.song, speed, bpm) + 1,
+      filename: songFilename('.wav')
+    });
+  };
+
+  $('btnExportClip').onclick = () => {
+    const speed = parseInt($('speedInput').value, 10) || 6;
+    const bpm = parseInt($('bpmInput').value, 10) || 125;
+    // duration of one pass through the current pattern (honoring Fxx/Dxx)
+    const single = { channels: state.song.channels, order: [curPattern()], patterns: state.song.patterns };
+    renderSongToWav($('btnExportClip'), {
+      pos: state.curPos, patternMode: true,
+      duration: simulateDuration(single, speed, bpm) + 0.5,
+      filename: songFilename('-pattern' + String(curPattern()).padStart(2, '0') + '.wav')
+    });
+  };
+
+  $('btnExportPng').onclick = () => {
+    const canvas = document.createElement('canvas');
+    const pat = curPattern();
+    PatternView.renderFull(canvas, state.song, pat,
+      `${state.song.title || 'untitled'} — pattern ${String(pat).padStart(2, '0')} — WebTracker`);
+    canvas.toBlob(blob => {
+      if (!blob) { setStatusMsg('PNG export failed'); return; }
+      const name = downloadBlob(blob, songFilename('-pattern' + String(pat).padStart(2, '0') + '.png'));
+      setStatusMsg(`Exported ${name} (${canvas.width}×${canvas.height})`);
+    }, 'image/png');
   };
 
   // ---- sample property editing --------------------------------------------------------

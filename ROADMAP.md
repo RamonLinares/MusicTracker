@@ -3,7 +3,6 @@
 ## Near Term
 
 - Improve first-run onboarding without interrupting experienced tracker users.
-- Add exportable pattern images or short clips for sharing songs online.
 
 ## Later
 
@@ -12,6 +11,7 @@
 
 ## Done
 
+- Pattern PNG snapshots and single-pattern WAV clips for sharing.
 - Playwright browser smoke test covering playback, editing, undo and import.
 - In-app effect reference with live cursor hints.
 - Native WebTracker project format (.wtp) for full-fidelity save/load.

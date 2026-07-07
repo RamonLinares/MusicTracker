@@ -38,8 +38,14 @@
     <button id="btnLoad" title="Load .MOD, OctaMED MMD0/MMD1, FastTracker II .XM or WebTracker .wtp project">Load</button>
     <button id="btnSave" title="Save as ProTracker .MOD (widely compatible, drops synths)">Save .MOD</button>
     <button id="btnSaveProj" title="Save as WebTracker project (.wtp) — keeps everything: synths, channels, tempo, Paula mode">Save Proj</button>
-    <button id="btnExport" title="Render the whole song to a 44.1kHz WAV file">Export WAV</button>
     <input type="file" id="fileInput" accept=".mod,.MOD,.med,.MED,.mmd,.MMD,.xm,.XM,.wtp,.WTP" hidden>
+  </div>
+
+  <div class="group">
+    <label>EXPORT</label>
+    <button id="btnExport" title="Render the whole song to a 44.1kHz WAV file">WAV</button>
+    <button id="btnExportClip" title="Render only the current pattern to a WAV clip">Clip</button>
+    <button id="btnExportPng" title="Save the current pattern as a shareable PNG image">PNG</button>
   </div>
 
   <div class="group transport">

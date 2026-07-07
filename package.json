@@ -9,7 +9,7 @@
     "url": "https://github.com/RamonLinares/MusicTracker.git"
   },
   "scripts": {
-    "serve": "python3 -m http.server 8642",
+    "serve": "node scripts/dev-server.mjs",
     "test": "node tests/mod-roundtrip.test.js && node tests/xm-import.test.js",
     "test:browser": "node tests/browser-smoke.test.mjs"
   },

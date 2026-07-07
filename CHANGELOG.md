@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added shareable pattern exports: a 64-row PNG snapshot of the current
+  pattern and a single-pattern WAV clip (EXPORT group in the header).
+- Added a no-cache development server (`npm run serve`) so local edits always
+  load fresh.
 - Added a Playwright browser smoke test (playback, editing, undo, drag-and-drop
   import, clean console) that runs in CI alongside the unit tests.
 - Added microphone sampling (● Rec): records up to 15 s, resampled to the

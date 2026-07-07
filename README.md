@@ -110,6 +110,8 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
 - **WAV export** — renders the whole song offline (honoring tempo changes,
   jumps, breaks and loops when computing the length) to 44.1 kHz 16-bit
   stereo. Muted channels stay muted, so it can also render stems.
+- **Pattern sharing** — export the current pattern as a full 64-row PNG
+  snapshot or as a single-pattern WAV clip (EXPORT · Clip / PNG).
 - **Install/offline support** — includes a web app manifest and service worker
   so the app shell can be installed and opened offline after a first visit.
 - **Autosave** — current work is saved to browser storage and restored when the

@@ -584,6 +584,7 @@
     $('editBtn').textContent = state.editMode && state.playing ? 'REC' : 'EDIT';
     $('followBtn').classList.toggle('active', state.follow);
     $('paulaBtn').classList.toggle('active', state.paula);
+    $('midiBtn').classList.toggle('active', midi.on);
     $('chDisp').textContent = state.song.channels;
     renderFxHint();
   }
@@ -1010,7 +1011,7 @@
 
   // record mode: write the played note at the current play row, quantized to
   // the nearest row using the time since the row started
-  function recordNote(note) {
+  function recordNote(note, vol, ch) {
     const speed = parseInt($('speedInput').value, 10) || 6;
     const bpm = parseInt($('bpmInput').value, 10) || 125;
     const rowMs = speed * 2500 / bpm;
@@ -1018,13 +1019,103 @@
     let row = state.playRow >= 0 ? state.playRow : 0;
     if (frac > 0.5) row = Math.min(63, row + 1);
     const p = state.song.order[state.playPos >= 0 ? state.playPos : state.curPos] | 0;
+    if (ch === undefined) ch = state.cursor.ch;
     if (!state.recUndo) { pushUndo('pattern', p); state.recUndo = true; }
-    const [, , f, pm] = MOD.cellGet(state.song, p, row, state.cursor.ch);
-    MOD.cellSet(state.song, p, row, state.cursor.ch, note, state.curSample + 1, f, pm);
+    let [, , f, pm] = MOD.cellGet(state.song, p, row, ch);
+    if (vol !== undefined && vol !== null && !f && !pm) { f = 0xC; pm = Math.min(64, vol); }
+    MOD.cellSet(state.song, p, row, ch, note, state.curSample + 1, f, pm);
     player.sendPattern(state.song, p);
     scheduleAutosave();
     drawPattern();
   }
+
+  // ---- MIDI input -----------------------------------------------------------
+
+  const midi = { access: null, on: false, held: {} };
+
+  function midiNoteToTracker(n) {
+    let note = n - 47; // MIDI 48 (C3) -> C-1, 60 (C4) -> C-2, 72 (C5) -> C-3
+    while (note > 36) note -= 12;
+    while (note < 1) note += 12;
+    return note;
+  }
+
+  function attachMidiInputs() {
+    for (const input of midi.access.inputs.values()) {
+      input.onmidimessage = e => onMidiMessage(e.data);
+    }
+  }
+
+  function detachMidiInputs() {
+    if (!midi.access) return;
+    for (const input of midi.access.inputs.values()) input.onmidimessage = null;
+  }
+
+  async function onMidiMessage(data) {
+    const type = data[0] & 0xF0, d1 = data[1], d2 = data[2];
+    if (type === 0x90 && d2 > 0) {          // note on
+      const note = midiNoteToTracker(d1);
+      const vol = Math.max(1, Math.min(64, Math.round(d2 / 2)));
+      await player.ensure();
+      if (!player._sentOnce) player.sendSong(state.song);
+      // simple polyphony: spread simultaneously held notes across channels
+      const ch = (state.cursor.ch + Object.keys(midi.held).length) % state.song.channels;
+      midi.held[d1] = ch;
+      player.jam(ch, state.curSample, note, vol);
+      if (state.editMode && state.playing) {
+        recordNote(note, vol, ch);
+      } else if (state.editMode) {
+        patchCell((n, s, f, pm) => {
+          if (!f && !pm && d2 < 127) { f = 0xC; pm = vol; }
+          return [note, state.curSample + 1, f, pm];
+        });
+        advanceRow();
+        drawPattern(); renderStatus();
+      }
+    } else if (type === 0x80 || (type === 0x90 && d2 === 0)) { // note off
+      const ch = midi.held[d1];
+      delete midi.held[d1];
+      const s = state.song.samples[state.curSample];
+      if (ch !== undefined && s && (s.loopLen > 2 || s.synth)) player.jamStop(ch);
+    }
+  }
+
+  async function toggleMidi() {
+    if (midi.on) {
+      midi.on = false;
+      detachMidiInputs();
+      renderStatus();
+      setStatusMsg('MIDI input off');
+      return;
+    }
+    if (!navigator.requestMIDIAccess) {
+      setStatusMsg('WebMIDI is not supported in this browser');
+      return;
+    }
+    try {
+      if (!midi.access) {
+        midi.access = await navigator.requestMIDIAccess();
+        midi.access.onstatechange = () => {
+          if (midi.on) { attachMidiInputs(); renderMidiStatus(); }
+        };
+      }
+      midi.on = true;
+      attachMidiInputs();
+      renderStatus();
+      renderMidiStatus();
+    } catch (err) {
+      setStatusMsg('MIDI access denied: ' + err.message);
+    }
+  }
+
+  function renderMidiStatus() {
+    const names = [...midi.access.inputs.values()].map(i => i.name).filter(Boolean);
+    setStatusMsg(names.length
+      ? 'MIDI: listening to ' + names.join(', ') + ' — notes jam and record like the keyboard'
+      : 'MIDI on — connect a device (no inputs found)');
+  }
+
+  $('midiBtn').onclick = () => toggleMidi();
 
   function onKeyDown(e) {
     if (e.target.tagName === 'INPUT' &&
@@ -1852,5 +1943,6 @@
 
   // console access for debugging / tinkering
   window.tracker = { player, state, MOD, MED, XM,
-    project: { build: buildProjectJson, parse: parseProjectJson } };
+    project: { build: buildProjectJson, parse: parseProjectJson },
+    midi: { state: midi, message: onMidiMessage, toggle: toggleMidi } };
 })();

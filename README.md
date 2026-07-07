@@ -71,6 +71,10 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
 - **Live record mode** — with EDIT on while playing (button turns to a red
   REC), note keys sound immediately and are written into the playing pattern,
   quantized to the nearest row; one undo step removes the whole take.
+- **MIDI input** — toggle MIDI in the header to play from a hardware keyboard
+  (WebMIDI): notes jam on the cursor channel, chords spread across channels,
+  note-off stops looped/synth voices, and in record mode velocity lands as a
+  Cxx volume command when the effect slot is free.
 - **Pattern editor** — canvas grid with ProTracker-style two-row piano keymap,
   hex entry for sample/effect columns, adjustable edit step, follow mode,
   live jam on keys, **block selection** (Shift+arrows or mouse drag),

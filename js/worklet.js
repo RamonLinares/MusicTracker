@@ -177,7 +177,7 @@ class ModPlayerProcessor extends AudioWorkletProcessor {
     if (!this.hasSound(s)) return;
     c.sample = m.sample;
     c.finetune = s.finetune;
-    c.vol = s.volume;
+    c.vol = m.vol >= 0 ? Math.min(64, m.vol) : s.volume;
     c.note = m.note;
     c.period = c.target = periodForNote(m.note, c.finetune);
     c.pos = 0;

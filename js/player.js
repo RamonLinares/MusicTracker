@@ -87,6 +87,6 @@ class Player {
   play(opts) { this.msg({ type: 'play', ...opts }); }
   stop() { this.msg({ type: 'stop' }); }
   setMute(mute) { this.msg({ type: 'mute', mute: mute.slice() }); }
-  jam(ch, sample, note) { this.msg({ type: 'jam', ch, sample, note }); }
+  jam(ch, sample, note, vol) { this.msg({ type: 'jam', ch, sample, note, vol: vol >= 0 ? vol : -1 }); }
   jamStop(ch) { this.msg({ type: 'jamStop', ch }); }
 }

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added MIDI keyboard input (MIDI toggle): notes jam live on the cursor
+  channel, chords spread across channels, and in record mode velocity is
+  written as a Cxx volume command when the effect slot is free.
 - Added an in-app effect reference (FX button / F2) and a live footer hint
   that decodes the effect under the cursor (e.g. "A02 — volume slide −2/tick").
 - Added a native WebTracker project format (`.wtp`): full-fidelity save/load

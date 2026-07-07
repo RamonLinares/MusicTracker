@@ -70,8 +70,8 @@
       hybrid: !!synth.hybrid,
       volspeed: synth.volspeed || 0,
       wfspeed: synth.wfspeed || 0,
-      voltbl: Array.isArray(synth.voltbl) ? synth.voltbl.slice() : [],
-      wftbl: Array.isArray(synth.wftbl) ? synth.wftbl.slice() : [],
+      voltbl: asUint8(synth.voltbl),
+      wftbl: asUint8(synth.wftbl),
       waveforms: (synth.waveforms || []).map(w => asInt8(w))
     };
   }

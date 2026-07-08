@@ -14,22 +14,25 @@ The hosted version runs on GitHub Pages:
 
 <https://ramonlinares.github.io/MusicTracker/>
 
-For local development, use any static file server. AudioWorklet modules cannot
-be loaded from `file://`, so opening `index.html` directly is not enough.
-
-```sh
-python3 -m http.server 8642
-```
-
-Then open <http://localhost:8642>.
-
-The npm scripts are convenience wrappers only; there are no runtime package
-dependencies.
+For local development, use the bundled dev server — it disables HTTP caching
+so edits always show up on reload:
 
 ```sh
 npm run serve
+```
+
+Then open <http://localhost:8642>. To run the test suite:
+
+```sh
 npm test
 ```
+
+Any other static file server works too (e.g. `python3 -m http.server 8642`),
+but plain servers let the browser cache scripts heuristically, so you may see
+stale code after editing. Opening `index.html` directly from `file://` does
+not work — AudioWorklet modules must be served over HTTP.
+
+There are no runtime package dependencies; the app is plain HTML/CSS/JS.
 
 A demo song is generated on startup. Press **Space** to loop the current
 pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference.

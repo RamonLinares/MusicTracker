@@ -227,6 +227,24 @@
         </div>
 
         <div class="as-section">
+          <h3>Hum to pattern <span class="as-hint">→ cursor channel</span></h3>
+          <div class="as-row">
+            <label class="as-check"><input type="checkbox" id="hmSnap" checked> snap to scale</label>
+            <label class="as-check"><input type="checkbox" id="hmClick" checked> click track</label>
+          </div>
+          <div class="as-row">
+            <label>quant</label>
+            <select id="hmQuant">
+              <option value="1">every row</option>
+              <option value="2" selected>2 rows</option>
+              <option value="4">4 rows</option>
+            </select>
+            <button id="hmGo" class="mini" title="One bar count-in, then hum or whistle for 4 bars — notes land in the cursor channel">🎤 Hum</button>
+          </div>
+          <div class="as-row"><span id="hmStatus" class="as-hint"></span></div>
+        </div>
+
+        <div class="as-section">
           <h3>Touch up</h3>
           <div class="as-row">
             <label>amt</label><input type="range" id="asHumAmt" min="1" max="4" value="2">
@@ -382,6 +400,7 @@
 <script src="js/xm.js"></script>
 <script src="js/chipsynth.js"></script>
 <script src="js/assist.js"></script>
+<script src="js/pitch.js"></script>
 <script src="js/player.js"></script>
 <script src="js/patternview.js"></script>
 <script src="js/pwa.js"></script>

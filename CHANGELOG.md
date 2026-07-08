@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added hum-to-pattern (ASSIST → 🎤 Hum): one bar of count-in clicks, then
+  hum or whistle for four bars — a YIN pitch tracker segments the recording
+  into notes, quantizes them to rows, optionally snaps them to the current
+  scale, derives velocity from loudness, and writes the melody to the
+  cursor channel (undoable).
 - Added a music assistant (ASSIST toggle): key/scale with auto-detection,
   scale lock for keyboard/MIDI entry, out-of-scale note highlighting,
   diatonic chord palette and chord inserter (spread/arpeggio/stacked),

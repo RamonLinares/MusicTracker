@@ -135,6 +135,11 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   echo and octave-double tricks, and a **song analyzer** that reports the
   key, per-bar chords, channel roles, echo relationships, and concrete
   improvement tips. Everything is undoable and works offline.
+- **Hum to pattern** — the assistant's 🎤 Hum button records from the mic
+  (count-in + metronome clicks), runs a YIN pitch tracker over the take,
+  segments it into notes, quantizes to rows, snaps to the current scale,
+  and writes the melody — with loudness as velocity — to the cursor
+  channel. Whistle a hook, get a pattern.
 - **Themes** — six looks selectable from the header and remembered locally:
   Amiga retro (default), skeuomorphic Workbench gray, modern dark Studio,
   Brutalist, green-phosphor Terminal, and Vaporwave. Every canvas (pattern,

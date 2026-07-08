@@ -1553,6 +1553,118 @@
     assistSyncUi();
   })();
 
+  // ---- hum to pattern ---------------------------------------------------------
+
+  let humActive = false;
+
+  /* analyze a mono buffer: pitch-track, segment, map to rows/notes */
+  function processHum(samples, sampleRate, skipSeconds, rowDur) {
+    const factor = Math.max(1, Math.round(sampleRate / 12000));
+    const ds = factor > 1 ? Pitch.downsample(samples, factor) : samples;
+    const dsr = sampleRate / factor;
+    const frames = Pitch.track(ds, dsr, { hop: 256, size: 1024 });
+    const segs = Pitch.segment(frames, 256 / dsr);
+    const quant = parseInt($('hmQuant').value, 10) || 2;
+    const snap = $('hmSnap').checked;
+    const maxRms = Math.max(0.0001, ...segs.map(sg => sg.rms));
+    const byRow = new Map();
+    for (const sg of segs) {
+      const t = sg.start - skipSeconds;
+      if (sg.dur < 0.06) continue;
+      let row = Math.round(t / rowDur / quant) * quant;
+      if (row < 0 && row > -quant) row = 0; // slightly-early first note
+      if (row < 0 || row > 63) continue;
+      let note = sg.midi - 47; // same octave mapping as MIDI input
+      while (note > 36) note -= 12;
+      while (note < 1) note += 12;
+      if (snap) note = Assist.snap(note, state.assist.root, state.assist.scale);
+      const vol = Math.round(40 + 24 * (sg.rms / maxRms));
+      const ev = { row, note, vol: vol < 62 ? vol : null, dur: sg.dur };
+      const cur = byRow.get(row);
+      if (!cur || ev.dur > cur.dur) byRow.set(row, ev);
+    }
+    return [...byRow.values()].sort((a, b) => a.row - b.row);
+  }
+
+  /* short metronome clicks on every beat, accented on bar starts */
+  function scheduleHumClicks(rowDur, totalSeconds) {
+    const ctx = player.ctx;
+    const t0 = ctx.currentTime + 0.05;
+    for (let beat = 0; beat * rowDur * 4 < totalSeconds; beat++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const at = t0 + beat * rowDur * 4;
+      osc.frequency.value = beat % 4 === 0 ? 1600 : 1100;
+      gain.gain.setValueAtTime(0.35, at);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + 0.04);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(at);
+      osc.stop(at + 0.05);
+    }
+  }
+
+  async function humCapture() {
+    if (humActive) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatusMsg('Microphone recording is not supported in this browser');
+      return;
+    }
+    const speed = parseInt($('speedInput').value, 10) || 6;
+    const bpm = parseInt($('bpmInput').value, 10) || 125;
+    const rowDur = speed * 2.5 / bpm;
+    const useClick = $('hmClick').checked;
+    const countIn = useClick ? rowDur * 16 : rowDur * 4;
+    const captureDur = rowDur * 64;
+    let timer = 0;
+    try {
+      await player.ensure();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      });
+      humActive = true;
+      $('hmGo').classList.add('rec');
+      $('hmGo').textContent = '● listening';
+      const chunks = [];
+      const rec = new MediaRecorder(stream);
+      rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+      const stopped = new Promise(res => { rec.onstop = res; });
+      await new Promise(res => { rec.onstart = res; rec.start(); });
+      if (useClick) scheduleHumClicks(rowDur, countIn + captureDur);
+      const t0 = performance.now();
+      timer = setInterval(() => {
+        const t = (performance.now() - t0) / 1000;
+        $('hmStatus').textContent = t < countIn
+          ? `count-in… ${Math.max(1, Math.ceil((countIn - t) / (rowDur * 4)))}`
+          : `hum now — bar ${Math.min(4, Math.floor((t - countIn) / (rowDur * 16)) + 1)}/4`;
+      }, 100);
+      setTimeout(() => { if (rec.state === 'recording') rec.stop(); },
+        (countIn + captureDur + 0.35) * 1000);
+      await stopped;
+      clearInterval(timer);
+      stream.getTracks().forEach(tr => tr.stop());
+      $('hmStatus').textContent = 'analyzing…';
+      const buf = await new Blob(chunks).arrayBuffer();
+      const audio = await player.ctx.decodeAudioData(buf);
+      const events = processHum(audio.getChannelData(0), audio.sampleRate, countIn, rowDur);
+      $('hmStatus').textContent = '';
+      if (!events.length) {
+        setStatusMsg('No hummable pitch found — try humming louder or closer to the mic');
+        return;
+      }
+      writeGenerated(events, 'Hummed melody');
+    } catch (err) {
+      setStatusMsg('Hum capture failed: ' + err.message);
+      $('hmStatus').textContent = '';
+    } finally {
+      if (timer) clearInterval(timer);
+      humActive = false;
+      $('hmGo').classList.remove('rec');
+      $('hmGo').textContent = '🎤 Hum';
+    }
+  }
+
+  $('hmGo').onclick = () => humCapture();
+
   // ---- MIDI input -----------------------------------------------------------
 
   const midi = { access: null, on: false, held: {} };
@@ -2808,5 +2920,6 @@
   window.tracker = { player, state, MOD, MED, XM,
     project: { build: buildProjectJson, parse: parseProjectJson },
     midi: { state: midi, message: onMidiMessage, toggle: toggleMidi },
+    hum: { process: processHum },
     applyTheme };
 })();

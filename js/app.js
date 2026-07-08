@@ -427,6 +427,10 @@
 
   // ---- rendering ----------------------------------------------------------
 
+  // current theme's canvas palette
+  const PAL = () => Themes.canvas();
+
+
   const patCanvas = $('pattern');
 
   function drawPattern() {
@@ -549,30 +553,30 @@
     const w = c.clientWidth, h = c.clientHeight;
     c.width = w * dpr; c.height = h * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#0d1017';
+    ctx.fillStyle = PAL().bg;
     ctx.fillRect(0, 0, w, h);
     const s = state.song.samples[state.curSample];
     let d = s.data;
     if (!d.length && s.synth) d = s.synth.waveforms.find(w => w.length) || d; // preview first synth waveform
     if (!d.length) {
-      ctx.fillStyle = '#333e58';
+      ctx.fillStyle = PAL().noteEmpty;
       ctx.font = '11px monospace';
       ctx.fillText(state.wave.mode === 'draw' ? 'draw mode: drag to create a waveform' : 'no sample data', 10, h / 2);
       if (state.wave.mode !== 'draw') return;
     }
     if (s.loopLen > 2 && d.length) {
-      ctx.fillStyle = 'rgba(110,195,224,0.12)';
+      ctx.fillStyle = PAL().waveLoop;
       const x0 = s.loopStart / d.length * w;
       const x1 = (s.loopStart + s.loopLen) / d.length * w;
       ctx.fillRect(x0, 0, x1 - x0, h);
     }
     const r = waveSelRange();
     if (r && d.length) {
-      ctx.fillStyle = 'rgba(255,160,64,0.18)';
+      ctx.fillStyle = PAL().waveSel;
       ctx.fillRect(r[0] / d.length * w, 0, (r[1] - r[0]) / d.length * w, h);
     }
     if (d.length) {
-      ctx.strokeStyle = '#7ee08a';
+      ctx.strokeStyle = PAL().wave;
       ctx.beginPath();
       for (let x = 0; x < w; x++) {
         const i = Math.floor(x / w * d.length);
@@ -581,7 +585,7 @@
       }
       ctx.stroke();
     }
-    ctx.strokeStyle = '#232c42';
+    ctx.strokeStyle = PAL().centerline;
     ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
   }
 
@@ -744,9 +748,9 @@
       if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
       const ctx = c.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = '#0d1017';
+      ctx.fillStyle = PAL().bg;
       ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = state.muted[i] ? '#3a4456' : '#7ee08a';
+      ctx.strokeStyle = state.muted[i] ? PAL().scopeMuted : PAL().scope;
       ctx.beginPath();
       const d = data ? data[i] : null;
       for (let x = 0; x < w; x++) {
@@ -1168,18 +1172,18 @@
     }
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#0d1017';
+    ctx.fillStyle = PAL().bg;
     ctx.fillRect(0, 0, w, h);
     for (let ch = 0; ch < chs; ch++) {
       const y = ch * DRUM.CELL_H;
       for (let i = 0; i < 64; i++) {
         const x = stepX(i);
         const beat = i % 4 === 0;
-        ctx.fillStyle = beat ? '#1c2438' : '#141926';
+        ctx.fillStyle = beat ? PAL().gridBeat : PAL().gridCell;
         ctx.fillRect(x, y + 2, DRUM.CELL_W - 2, DRUM.CELL_H - 5);
         const hit = drumHit(i, ch);
         if (hit) {
-          ctx.fillStyle = state.muted[ch] ? '#5a5148' : '#ffa040';
+          ctx.fillStyle = state.muted[ch] ? PAL().scopeMuted : PAL().gridHit;
           ctx.globalAlpha = 0.35 + (hit.vel / 64) * 0.65;
           ctx.fillRect(x + 1, y + 3, DRUM.CELL_W - 4, DRUM.CELL_H - 7);
           ctx.globalAlpha = 1;
@@ -1187,7 +1191,7 @@
       }
     }
     if (state.playing && state.playRow >= 0) {
-      ctx.fillStyle = 'rgba(140,180,255,0.22)';
+      ctx.fillStyle = PAL().gridPlay;
       ctx.fillRect(stepX(state.playRow), 0, DRUM.CELL_W - 2, h);
     }
   }
@@ -2162,10 +2166,10 @@
     const w = c.clientWidth || 300, h = c.clientHeight || 60;
     c.width = w * dpr; c.height = h * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#0d1017';
+    ctx.fillStyle = PAL().bg;
     ctx.fillRect(0, 0, w, h);
     const d = ChipSynth.build(synthReadParams()).waveforms[0];
-    ctx.strokeStyle = '#7ee08a';
+    ctx.strokeStyle = PAL().wave;
     ctx.beginPath();
     for (let x = 0; x < w; x++) {
       const y = h / 2 - (d[Math.floor(x / w * d.length)] / 128) * (h / 2 - 2);
@@ -2482,8 +2486,35 @@
     if (!restored) setStatusMsg('Demo song loaded — Space plays the pattern, Shift+Space the song, F1 for help.');
   });
 
+  // ---- themes -----------------------------------------------------------------
+
+  function applyTheme(name) {
+    Themes.apply(name);
+    PatternView.setPalette(Themes.canvas());
+    renderAll();
+    drawScopes(null);
+    if (state.view === 'drums') drawDrums();
+  }
+
+  (function initThemeUi() {
+    const sel = $('themeSel');
+    for (const [key, t] of Object.entries(Themes.THEMES)) {
+      const o = document.createElement('option');
+      o.value = key;
+      o.textContent = t.label;
+      sel.appendChild(o);
+    }
+    sel.value = Themes.current;
+    sel.onchange = () => applyTheme(sel.value);
+    PatternView.setPalette(Themes.canvas()); // sync canvases with the saved theme
+    drawPattern();
+    drawScopes(null);
+    drawWave();
+  })();
+
   // console access for debugging / tinkering
   window.tracker = { player, state, MOD, MED, XM,
     project: { build: buildProjectJson, parse: parseProjectJson },
-    midi: { state: midi, message: onMidiMessage, toggle: toggleMidi } };
+    midi: { state: midi, message: onMidiMessage, toggle: toggleMidi },
+    applyTheme };
 })();

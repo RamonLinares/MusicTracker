@@ -15,6 +15,7 @@ const PatternView = (() => {
   // char index span for each cursor sub-column within the cell text
   const COL_SPAN = [[0, 3], [4, 1], [5, 1], [7, 1], [8, 1], [9, 1]];
 
+  // default palette (Amiga theme); themes swap it via setPalette()
   const CLR = {
     bg: '#0d1017',
     rowNum: '#4d5a75',
@@ -29,11 +30,16 @@ const PatternView = (() => {
     ins: '#6fc3e0',
     fx: '#f0a860',
     fxEmpty: '#2c3650',
-    cursorBg: '#ff933030',
     cursor: '#ffa040',
     cursorText: '#10131a',
-    mutedOverlay: 'rgba(13,16,23,0.72)'
+    mutedOverlay: 'rgba(13,16,23,0.72)',
+    selFill: 'rgba(110,160,255,0.16)',
+    selStroke: 'rgba(130,175,255,0.55)'
   };
+
+  function setPalette(p) {
+    for (const k of Object.keys(CLR)) if (p[k]) CLR[k] = p[k];
+  }
 
   let charW = 8;
   let measured = false;
@@ -141,9 +147,9 @@ const PatternView = (() => {
       if (y1 > 0 && y0 < h) {
         const x0 = ROWNUM_W + s.c0 * cw;
         const x1 = ROWNUM_W + (s.c1 + 1) * cw;
-        ctx.fillStyle = 'rgba(110,160,255,0.16)';
+        ctx.fillStyle = CLR.selFill;
         ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-        ctx.strokeStyle = 'rgba(130,175,255,0.55)';
+        ctx.strokeStyle = CLR.selStroke;
         ctx.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0 - 1, y1 - y0 - 1);
       }
     }
@@ -163,7 +169,7 @@ const PatternView = (() => {
 
     // center line marker
     const cy = (visRows >> 1) * ROWH;
-    ctx.strokeStyle = '#3a4a6a';
+    ctx.strokeStyle = CLR.rowNumBeat;
     ctx.strokeRect(0.5, cy + 0.5, w - 1, ROWH - 1);
   }
 
@@ -214,7 +220,7 @@ const PatternView = (() => {
     ctx.fillRect(0, 0, w, h);
 
     if (label) {
-      ctx.fillStyle = '#9fb4d6';
+      ctx.fillStyle = CLR.note;
       ctx.fillText(label, 8, titleH / 2 + 2);
     }
     const cw = cellW();
@@ -251,5 +257,5 @@ const PatternView = (() => {
     }
   }
 
-  return { draw, hitTest, channelHeaderMetrics, renderFull, ROWH };
+  return { draw, hitTest, channelHeaderMetrics, renderFull, setPalette, ROWH };
 })();

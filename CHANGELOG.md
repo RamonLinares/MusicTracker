@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added six visual themes (picker in the header, persisted locally): Amiga
+  retro (default), skeuomorphic Workbench gray, modern dark Studio,
+  Brutalist, green-phosphor Terminal, and Vaporwave. Pattern view, scopes,
+  waveform, drum grid, and PNG exports all follow the theme.
 - Added swing (SWG, 50–75%): MPC-style shuffle at the engine level — even
   rows stretch and odd rows shrink while pairs keep their length. Persists
   in autosave and .wtp projects and is honored by WAV export.

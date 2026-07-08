@@ -126,6 +126,10 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   stereo. Muted channels stay muted, so it can also render stems.
 - **Pattern sharing** — export the current pattern as a full 64-row PNG
   snapshot or as a single-pattern WAV clip (EXPORT · Clip / PNG).
+- **Themes** — six looks selectable from the header and remembered locally:
+  Amiga retro (default), skeuomorphic Workbench gray, modern dark Studio,
+  Brutalist, green-phosphor Terminal, and Vaporwave. Every canvas (pattern,
+  scopes, waveform, drum grid) and the PNG export follow the theme.
 - **Install/offline support** — includes a web app manifest and service worker
   so the app shell can be installed and opened offline after a first visit.
 - **Autosave** — current work is saved to browser storage and restored when the

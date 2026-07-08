@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added a Chip Synthesizer (Synth button in the sample panel): designs synth
+  instruments — waveform/duty, PWM sweep, attack/decay/sustain, chord
+  arpeggios, pitch slide, vibrato — compiled to OctaMED-style synth programs
+  played by the existing engine; 8 presets, live preview, saves in .wtp.
+- Added synth-program vibrato (VBD/VBS opcodes) to the playback engine.
 - Added shareable pattern exports: a 64-row PNG snapshot of the current
   pattern and a single-pattern WAV clip (EXPORT group in the header).
 - Added a no-cache development server (`npm run serve`) so local edits always

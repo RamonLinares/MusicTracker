@@ -72,7 +72,8 @@
       wfspeed: synth.wfspeed || 0,
       voltbl: asUint8(synth.voltbl),
       wftbl: asUint8(synth.wftbl),
-      waveforms: (synth.waveforms || []).map(w => asInt8(w))
+      waveforms: (synth.waveforms || []).map(w => asInt8(w)),
+      chip: synth.chip ? { ...synth.chip } : null // chip-synth knob values
     };
   }
 
@@ -1136,6 +1137,13 @@
       }
       return;
     }
+    if (!$('synthModal').classList.contains('hidden')) {
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        toggleSynth(false);
+      }
+      return;
+    }
 
     const c = state.cursor;
     const code = e.code;
@@ -1853,6 +1861,133 @@
       setStatusMsg('Microphone unavailable: ' + err.message);
     }
   };
+
+  // ---- chip synthesizer -------------------------------------------------------
+
+  const SY_CONTROLS = ['syWave', 'syDuty', 'syPwm', 'syPwmSpeed', 'syAttack',
+    'syDecay', 'sySustain', 'syArp', 'sySlide', 'syVibD', 'syVibS'];
+  let synthPreviewDirty = false;
+
+  function synthReadParams() {
+    return {
+      wave: $('syWave').value,
+      duty: parseFloat($('syDuty').value) || 0.5,
+      pwm: $('syPwm').checked,
+      pwmSpeed: parseInt($('syPwmSpeed').value, 10) || 3,
+      attack: parseInt($('syAttack').value, 10) || 0,
+      decay: parseInt($('syDecay').value, 10) || 0,
+      sustain: parseInt($('sySustain').value, 10) || 0,
+      arp: $('syArp').value,
+      slide: parseInt($('sySlide').value, 10) || 0,
+      vibDepth: parseInt($('syVibD').value, 10) || 0,
+      vibSpeed: parseInt($('syVibS').value, 10) || 3
+    };
+  }
+
+  function synthWriteParams(p) {
+    $('syWave').value = p.wave || 'square';
+    $('syDuty').value = String(p.duty || 0.5);
+    $('syPwm').checked = !!p.pwm;
+    $('syPwmSpeed').value = p.pwmSpeed || 3;
+    $('syAttack').value = p.attack | 0;
+    $('syDecay').value = p.decay | 0;
+    $('sySustain').value = p.sustain | 0;
+    $('syArp').value = p.arp || 'off';
+    $('sySlide').value = p.slide | 0;
+    $('syVibD').value = p.vibDepth | 0;
+    $('syVibS').value = p.vibSpeed || 3;
+    synthRefreshUi();
+  }
+
+  function synthRefreshUi() {
+    for (const [id, vid] of [['syPwmSpeed', 'syPwmSpeedV'], ['syAttack', 'syAttackV'],
+      ['syDecay', 'syDecayV'], ['sySustain', 'sySustainV'], ['sySlide', 'sySlideV'],
+      ['syVibD', 'syVibDV'], ['syVibS', 'syVibSV']]) {
+      $(vid).textContent = $(id).value;
+    }
+    // waveform preview (first frame of the built synth)
+    const c = $('syWavePreview');
+    const ctx = c.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const w = c.clientWidth || 300, h = c.clientHeight || 60;
+    c.width = w * dpr; c.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#0d1017';
+    ctx.fillRect(0, 0, w, h);
+    const d = ChipSynth.build(synthReadParams()).waveforms[0];
+    ctx.strokeStyle = '#7ee08a';
+    ctx.beginPath();
+    for (let x = 0; x < w; x++) {
+      const y = h / 2 - (d[Math.floor(x / w * d.length)] / 128) * (h / 2 - 2);
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // audition the current knobs without touching the song: the audio thread
+  // gets a temporary sample, restored from the song when the modal closes
+  async function synthPreviewNote() {
+    await player.ensure();
+    if (!player._sentOnce) player.sendSong(state.song);
+    const temp = {
+      name: '', volume: 64, finetune: 0, loopStart: 0, loopLen: 0,
+      data: new Int8Array(0), synth: ChipSynth.build(synthReadParams())
+    };
+    player.msg({ type: 'sample', index: state.curSample, sample: Player.serializeSample(temp) });
+    synthPreviewDirty = true;
+    player.jam(state.cursor.ch, state.curSample, 13); // C-2
+  }
+
+  function toggleSynth(show) {
+    if (show) {
+      const s = state.song.samples[state.curSample];
+      synthWriteParams(s.synth && s.synth.chip ? s.synth.chip : { ...ChipSynth.PRESETS['pwm lead'] });
+    } else if (synthPreviewDirty) {
+      player.sendSample(state.song, state.curSample); // restore the real slot
+      synthPreviewDirty = false;
+    }
+    $('synthModal').classList.toggle('hidden', !show);
+  }
+
+  $('btnSynth').onclick = () => toggleSynth(true);
+  $('syClose').onclick = () => toggleSynth(false);
+  $('synthModal').addEventListener('mousedown', e => {
+    if (e.target === $('synthModal')) toggleSynth(false);
+  });
+  $('syPreview').onclick = () => synthPreviewNote();
+  $('syApply').onclick = () => {
+    pushUndo('sample', state.curSample);
+    const s = state.song.samples[state.curSample];
+    const p = synthReadParams();
+    s.synth = ChipSynth.build(p);
+    s.data = new Int8Array(0);
+    s.loopStart = 0; s.loopLen = 0;
+    s.volume = 64;
+    if (!s.name) s.name = ($('syPreset').value || p.wave) + ' *';
+    synthPreviewDirty = false;
+    sampleChanged();
+    setStatusMsg('Synth applied to slot ' +
+      (state.curSample + 1).toString(16).toUpperCase().padStart(2, '0') +
+      ' — plays live, saves in .wtp projects');
+  };
+
+  (function initSynthUi() {
+    const sel = $('syPreset');
+    for (const name of Object.keys(ChipSynth.PRESETS)) {
+      const o = document.createElement('option');
+      o.value = name;
+      o.textContent = name;
+      sel.appendChild(o);
+    }
+    sel.onchange = () => {
+      synthWriteParams({ ...ChipSynth.PRESETS[sel.value] });
+      synthPreviewNote();
+    };
+    for (const id of SY_CONTROLS) {
+      $(id).addEventListener('input', synthRefreshUi);
+      $(id).addEventListener('change', () => synthPreviewNote());
+    }
+  })();
 
   // ---- waveform editor -------------------------------------------------------------------
 

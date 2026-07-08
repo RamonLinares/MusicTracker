@@ -377,3 +377,21 @@ button.mini { padding: 3px 6px; font-size: 11px; flex: 1; }
 .fx-name { color: #d6e2f5; padding-right: 14px !important; white-space: nowrap; }
 
 button.rec { background: #d04038; color: #fff; border-color: #ff8078 #701812 #701812 #ff8078; }
+
+/* ---- chip synthesizer ---- */
+
+.synth-box { min-width: 480px; }
+.sy-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.sy-row label { color: var(--text-dim); font-size: 11px; white-space: nowrap; }
+.sy-row select { font: var(--font); background: #0d1017; color: #d6e2f5; border: 1px solid var(--bevel-lo); padding: 3px 5px; }
+.sy-row input[type="range"] { width: 90px; accent-color: var(--accent); }
+.sy-val { color: var(--accent); min-width: 24px; text-align: right; }
+#syWavePreview { width: 100%; height: 56px; border: 1px solid var(--bevel-lo); background: #0d1017; margin-bottom: 10px; }
+.sy-actions { justify-content: flex-end; }
+.sy-note { color: var(--text-dim); font-size: 10px; line-height: 1.5; max-width: 460px; }

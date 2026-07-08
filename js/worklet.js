@@ -195,7 +195,8 @@ class ModPlayerProcessor extends AudioWorkletProcessor {
       vp: 0, wp: 0, volWait: 0, wfWait: 0, volCnt: 1, wfCnt: 1,
       volSpeed: Math.max(1, s.synth.volspeed), wfSpeed: Math.max(1, s.synth.wfspeed),
       vol: 64, wf: 0, volHalt: false, wfHalt: false,
-      volSlide: 0, slide: 0, arp: null, arpPos: 0
+      volSlide: 0, slide: 0, arp: null, arpPos: 0,
+      vibPos: 0, vibDepth: 0, vibSpeed: 1, vibDelta: 0
     };
   }
 
@@ -228,7 +229,8 @@ class ModPlayerProcessor extends AudioWorkletProcessor {
         case 0xF1: { const v = arg(); if (isVol) sy.volWait = v; else sy.wfWait = v; return; }               // WAI
         case 0xF2: { const v = arg(); if (isVol) sy.volSlide = -v; else sy.slide = v; break; }  // CHD (vol down / pitch down)
         case 0xF3: { const v = arg(); if (isVol) sy.volSlide = v; else sy.slide = -v; break; }  // CHU
-        case 0xF4: case 0xF5: arg(); break;                                  // EN1/EN2 or VBD/VBS — not implemented
+        case 0xF4: { const v = arg(); if (!isVol) sy.vibDepth = Math.min(63, v); break; } // VBD (wf table)
+        case 0xF5: { const v = arg(); if (!isVol) sy.vibSpeed = Math.max(1, Math.min(63, v)); break; } // VBS
         case 0xF6: if (!isVol) { sy.slide = 0; c.period = periodForNote(c.note, c.finetune); } break; // RES
         case 0xF7: if (!isVol) arg(); break;                                 // VWF — not implemented
         case 0xFA: { const v = arg(); if (isVol) sy.wp = v; else sy.vp = v; break; } // JWS / JVS
@@ -267,6 +269,12 @@ class ModPlayerProcessor extends AudioWorkletProcessor {
     if (sy.volSlide) sy.vol = Math.max(0, Math.min(64, sy.vol + sy.volSlide));
     if (sy.slide) c.period = Math.max(100, Math.min(3424, c.period + sy.slide));
     if (sy.arp && sy.arp.length) sy.arpPos = (sy.arpPos + 1) % sy.arp.length;
+    if (sy.vibDepth) {
+      sy.vibPos = (sy.vibPos + sy.vibSpeed) & 63;
+      sy.vibDelta = Math.sin(sy.vibPos * Math.PI / 32) * sy.vibDepth;
+    } else {
+      sy.vibDelta = 0;
+    }
   }
 
   patternAt(pos) {
@@ -535,9 +543,9 @@ class ModPlayerProcessor extends AudioWorkletProcessor {
               if (s.synth.hybrid && c.sy.wf === 0) { ls = s.loopStart; ll = s.loopLen; }
               else { ls = 0; ll = d.length; } // pure synth waveforms always loop fully
               volScale = c.sy.vol / 64;
-              per = (c.sy.arp && c.sy.arp.length)
+              per = ((c.sy.arp && c.sy.arp.length)
                 ? periodForNote(c.note + c.sy.arp[c.sy.arpPos], c.finetune)
-                : (c.glissP || c.period) + c.vibDelta;
+                : (c.glissP || c.period) + c.vibDelta) + c.sy.vibDelta;
             } else d = null;
           } else if (s && s.data.length) {
             d = s.data; ls = s.loopStart; ll = s.loopLen;

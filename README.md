@@ -91,6 +91,11 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   a low-pass **Filter** in the classic ProTracker style.
 - **Microphone sampling** — the ● Rec button records from the mic (up to
   15 s) and converts straight to 8-bit at the Amiga C-2 rate.
+- **Chip Synthesizer** — the Synth button designs synth instruments the
+  SID/Game Boy way: waveform + duty cycle, PWM sweep, attack/decay/sustain,
+  chord arpeggios, pitch slides (kicks, zaps), and vibrato. Everything
+  compiles to OctaMED-style synth programs played by the built-in engine,
+  updates live while the song plays, and saves into `.wtp` projects.
 - **Song editor** — order list (up to 128 positions), insert/delete positions,
   per-position pattern assignment, oscilloscopes per channel, **4–8 channels**
   (CH −/+ in the order bar; 4-channel songs save as `M.K.`, others as

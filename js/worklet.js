@@ -87,6 +87,7 @@ class ModPlayerProcessor extends AudioWorkletProcessor {
     // Paula mode + Amiga output filters
     this.paula = false;
     this.led = false;
+    this.swing = 50; // 50 = straight, up to 75 = heavy shuffle
     this.aRC = 1 - Math.exp(-2 * Math.PI * 4900 / sampleRate);
     this.aLED = 1 - Math.exp(-2 * Math.PI * 3275 / sampleRate);
     this.rcL = 0; this.rcR = 0;
@@ -99,6 +100,7 @@ class ModPlayerProcessor extends AudioWorkletProcessor {
       this.setSong(po.song);
       if (po.mute) this.mute = po.mute;
       if (po.paula) this.paula = true;
+      if (po.swing) this.swing = Math.max(50, Math.min(75, po.swing));
       if (po.play) this.startPlay(po.play);
     }
   }
@@ -122,6 +124,7 @@ class ModPlayerProcessor extends AudioWorkletProcessor {
         break;
       case 'mute': this.mute = m.mute; break;
       case 'paula': this.paula = !!m.on; break;
+      case 'swing': this.swing = Math.max(50, Math.min(75, m.amount || 50)); break;
       case 'jam': this.jam(m); break;
       case 'jamStop':
         if (!this.playing && this.channels[m.ch]) this.channels[m.ch].playing = false;
@@ -525,8 +528,12 @@ class ModPlayerProcessor extends AudioWorkletProcessor {
 
     for (let f = 0; f < n; f++) {
       if (this.tickCounter <= 0) {
+        // swing: even rows stretched, odd rows shrunk (pairs keep their sum)
+        const sw = (this.playing && this.swing > 50)
+          ? ((this.row & 1) === 0 ? this.swing / 50 : 2 - this.swing / 50)
+          : 1;
         this.doTick();
-        this.tickCounter += this.tickLen;
+        this.tickCounter += this.tickLen * sw;
       }
       this.tickCounter--;
 

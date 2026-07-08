@@ -20,6 +20,7 @@
     follow: true,
     playing: false,
     paula: false,              // Paula mode: nearest-neighbour + Amiga filters
+    swing: 50,                 // 50 = straight, up to 75 = heavy shuffle
     lastRowTime: 0,            // for record-mode quantization
     recUndo: false,            // one undo entry per recording take
     muted: [false, false, false, false],
@@ -201,6 +202,7 @@
       editMode: state.editMode,
       follow: state.follow,
       paula: state.paula,
+      swing: state.swing,
       muted: state.muted.slice(),
       bpm: parseInt($('bpmInput').value, 10) || 125,
       speed: parseInt($('speedInput').value, 10) || 6
@@ -243,6 +245,9 @@
       state.editMode = draft.editMode !== false;
       state.follow = draft.follow !== false;
       state.paula = !!draft.paula;
+      state.swing = clampNum(draft.swing, 50, 75, 50);
+      $('swingInput').value = state.swing;
+      player.msg({ type: 'swing', amount: state.swing });
       state.muted = Array.isArray(draft.muted)
         ? draft.muted.slice(0, song.channels).map(Boolean)
         : new Array(song.channels).fill(false);
@@ -310,6 +315,7 @@
       bpm: parseInt($('bpmInput').value, 10) || 125,
       speed: parseInt($('speedInput').value, 10) || 6,
       paula: state.paula,
+      swing: state.swing,
       song
     });
   }
@@ -335,7 +341,11 @@
     const song = songFromStorage(saved);
     if (proj.bpm) song.initBPM = clampNum(proj.bpm, 32, 255, 125);
     if (proj.speed) song.initSpeed = clampNum(proj.speed, 1, 31, 6);
-    return { song, paula: typeof proj.paula === 'boolean' ? proj.paula : null };
+    return {
+      song,
+      paula: typeof proj.paula === 'boolean' ? proj.paula : null,
+      swing: proj.swing ? clampNum(proj.swing, 50, 75, 50) : null
+    };
   }
 
   // ---- undo / redo ---------------------------------------------------------
@@ -780,6 +790,7 @@
     player.sendSong(state.song);
     player.setMute(state.muted);
     player.msg({ type: 'paula', on: state.paula });
+    player.msg({ type: 'swing', amount: state.swing });
     state.playing = true;
     state.recUndo = false;
     state.playPos = fromCurrent ? state.curPos : 0;
@@ -796,6 +807,7 @@
     player.sendSong(state.song);
     player.setMute(state.muted);
     player.msg({ type: 'paula', on: state.paula });
+    player.msg({ type: 'swing', amount: state.swing });
     state.playing = true;
     state.recUndo = false;
     state.playPos = state.curPos;
@@ -1667,6 +1679,12 @@
     player.msg({ type: 'speed', speed: parseInt($('speedInput').value, 10) || 6 });
     scheduleAutosave();
   };
+  $('swingInput').onchange = () => {
+    state.swing = Math.max(50, Math.min(75, parseInt($('swingInput').value, 10) || 50));
+    $('swingInput').value = state.swing;
+    player.msg({ type: 'swing', amount: state.swing });
+    scheduleAutosave();
+  };
 
   $('songTitle').oninput = () => {
     state.song.title = $('songTitle').value.slice(0, 20);
@@ -1741,13 +1759,18 @@
       let i = 0;
       while (i < head.length && (head[i] === 32 || head[i] === 9 || head[i] === 10 || head[i] === 13)) i++;
       if (head[i] === 0x7B) { // '{' — a WebTracker .wtp project
-        const { song, paula } = parseProjectJson(new TextDecoder().decode(buf));
+        const { song, paula, swing } = parseProjectJson(new TextDecoder().decode(buf));
         adoptSong(song, `Loaded project "${song.title || file.name}" — ${song.channels}ch, ` +
           `${song.patterns.length} patterns`);
         if (paula !== null && paula !== state.paula) {
           state.paula = paula;
           player.msg({ type: 'paula', on: paula });
           renderStatus();
+        }
+        if (swing !== null) {
+          state.swing = swing;
+          $('swingInput').value = swing;
+          player.msg({ type: 'swing', amount: swing });
         }
         return;
       }
@@ -1910,6 +1933,7 @@
           song: Player.serializeSong(state.song),
           mute: state.muted.slice(),
           paula: state.paula,
+          swing: state.swing,
           play: { pos, row: 0, patternMode, speed, bpm }
         }
       });

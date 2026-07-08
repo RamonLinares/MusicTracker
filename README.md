@@ -102,6 +102,9 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   rhythm fills** (hits + rotation, Elektron style). It is just another lens
   on the same pattern data, so undo, playback, and all file formats keep
   working.
+- **Swing** — the SWG control (50–75%) adds MPC-style shuffle at the engine
+  level: even rows stretch, odd rows shrink, pairs keep their combined
+  length. Saved in `.wtp` projects and applied to WAV exports.
 - **Song editor** — order list (up to 128 positions), insert/delete positions,
   per-position pattern assignment, oscilloscopes per channel, **4–8 channels**
   (CH −/+ in the order bar; 4-channel songs save as `M.K.`, others as

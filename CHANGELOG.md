@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added swing (SWG, 50–75%): MPC-style shuffle at the engine level — even
+  rows stretch and odd rows shrink while pairs keep their length. Persists
+  in autosave and .wtp projects and is honored by WAV export.
 - Added a drum machine view (DRUMS tab): an x0x-style step grid over the
   current pattern with per-lane sample/note, drag painting, velocity cycling
   via Shift+click, and per-lane Euclidean rhythm fills with rotation.

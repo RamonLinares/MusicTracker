@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added a music assistant (ASSIST toggle): key/scale with auto-detection,
+  scale lock for keyboard/MIDI entry, out-of-scale note highlighting,
+  diatonic chord palette and chord inserter (spread/arpeggio/stacked),
+  in-scale harmonization, seeded bassline and melody generators with
+  progressions and contours, humanize (velocity + micro-timing), classic
+  echo and octave-double tricks, and a song analyzer that reports key,
+  bar chords, channel roles, echo relationships and improvement tips.
 - Added six visual themes (picker in the header, persisted locally): Amiga
   retro (default), skeuomorphic Workbench gray, modern dark Studio,
   Brutalist, green-phosphor Terminal, and Vaporwave. Pattern view, scopes,

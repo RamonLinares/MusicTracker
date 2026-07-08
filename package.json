@@ -10,7 +10,7 @@
   },
   "scripts": {
     "serve": "node scripts/dev-server.mjs",
-    "test": "node tests/mod-roundtrip.test.js && node tests/xm-import.test.js",
+    "test": "node tests/mod-roundtrip.test.js && node tests/xm-import.test.js && node tests/assist.test.js",
     "test:browser": "node tests/browser-smoke.test.mjs"
   },
   "devDependencies": {

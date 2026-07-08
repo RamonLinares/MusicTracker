@@ -126,6 +126,15 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   stereo. Muted channels stay muted, so it can also render stems.
 - **Pattern sharing** — export the current pattern as a full 64-row PNG
   snapshot or as a single-pattern WAV clip (EXPORT · Clip / PNG).
+- **Music assistant** — the ASSIST panel puts a knowledgeable tracker
+  friend next to the grid: key/scale selection with **auto-detection**,
+  a **scale lock** that snaps keyboard and MIDI entry, out-of-scale note
+  highlighting, a diatonic chord palette with three insert modes,
+  in-scale **harmonization**, seeded **bassline/melody generators**
+  (progressions, contours, density, reroll), **humanize**, the classic
+  echo and octave-double tricks, and a **song analyzer** that reports the
+  key, per-bar chords, channel roles, echo relationships, and concrete
+  improvement tips. Everything is undoable and works offline.
 - **Themes** — six looks selectable from the header and remembered locally:
   Amiga retro (default), skeuomorphic Workbench gray, modern dark Studio,
   Brutalist, green-phosphor Terminal, and Vaporwave. Every canvas (pattern,

@@ -34,7 +34,8 @@ const PatternView = (() => {
     cursorText: '#10131a',
     mutedOverlay: 'rgba(13,16,23,0.72)',
     selFill: 'rgba(110,160,255,0.16)',
-    selStroke: 'rgba(130,175,255,0.55)'
+    selStroke: 'rgba(130,175,255,0.55)',
+    noteOut: '#ff5b6b'
   };
 
   function setPalette(p) {
@@ -133,7 +134,9 @@ const PatternView = (() => {
             ctx.fillText(str[k], x0 + cx * charW, y + ROWH / 2);
           }
         };
-        drawPart(t.note, 0, t.hasNote ? CLR.note : CLR.noteEmpty);
+        const noteClr = t.hasNote && state.scaleMask && !state.scaleMask[(pd[(r * channels + ch) * 4] - 1) % 12]
+          ? CLR.noteOut : CLR.note;
+        drawPart(t.note, 0, t.hasNote ? noteClr : CLR.noteEmpty);
         drawPart(t.ins, 4, t.hasIns ? CLR.ins : CLR.noteEmpty);
         drawPart(t.fx, 7, t.hasFx ? CLR.fx : CLR.fxEmpty);
       }

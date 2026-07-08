@@ -75,6 +75,7 @@
     <button id="followBtn" class="toggle" title="View follows playback">FOLLOW</button>
     <button id="paulaBtn" class="toggle" title="Paula mode: nearest-neighbour 8-bit output + Amiga RC filter; E0x toggles the LED filter">PAULA</button>
     <button id="midiBtn" class="toggle" title="MIDI input: play notes from a MIDI keyboard — jams live, records with velocity in REC mode">MIDI</button>
+    <button id="assistBtn" class="toggle" title="Music assistant: key/scale lock, chords, generators, analysis">ASSIST</button>
     <button id="btnFxRef" title="Effect command reference (F2)">FX</button>
     <button id="btnHelp" title="Keyboard reference (F1)">?</button>
     <select id="themeSel" title="Visual theme"></select>
@@ -154,12 +155,102 @@
       <button id="tabDrums" class="vtab" title="Drum machine view: step grid + Euclidean fills over the same pattern">DRUMS</button>
     </div>
     <div id="chanHeaders"></div>
-    <div class="pattern-wrap">
-      <canvas id="pattern"></canvas>
-    </div>
-    <div id="drumPanel" class="drum-panel hidden">
-      <div id="drumLanes"></div>
-      <div class="drum-scroll"><canvas id="drumGrid" title="Click: toggle hit · drag: paint · Shift+click: cycle velocity"></canvas></div>
+    <div class="edit-area">
+      <div class="pattern-wrap">
+        <canvas id="pattern"></canvas>
+      </div>
+      <div id="drumPanel" class="drum-panel hidden">
+        <div id="drumLanes"></div>
+        <div class="drum-scroll"><canvas id="drumGrid" title="Click: toggle hit · drag: paint · Shift+click: cycle velocity"></canvas></div>
+      </div>
+
+      <div id="assistPanel" class="assist-panel hidden">
+        <h2>Assist</h2>
+
+        <div class="as-section">
+          <h3>Key &amp; scale</h3>
+          <div class="as-row">
+            <select id="asRoot"></select>
+            <select id="asScale"></select>
+            <button id="asDetect" class="mini" title="Detect the key from the song's notes">Detect</button>
+          </div>
+          <div class="as-row"><label class="as-check"><input type="checkbox" id="asLock"> snap note entry to scale</label></div>
+          <div class="as-row"><label class="as-check"><input type="checkbox" id="asHighlight" checked> highlight out-of-scale notes</label></div>
+        </div>
+
+        <div class="as-section">
+          <h3>Chords</h3>
+          <div class="as-row as-diatonic" id="asDiatonic" title="Diatonic chords of the current key"></div>
+          <div class="as-row">
+            <select id="asChordRoot"></select>
+            <select id="asChordType"></select>
+          </div>
+          <div class="as-row">
+            <select id="asChordMode">
+              <option value="spread">spread across channels</option>
+              <option value="arp">arpeggio effect (0xy)</option>
+              <option value="rows">stacked rows</option>
+            </select>
+            <button id="asChordIns" class="mini" title="Insert at the cursor with the current sample">Insert</button>
+          </div>
+          <div class="as-row">
+            <button id="asHarm3" class="mini" title="Copy the cursor channel to the next channel a scale-third up (empty cells only)">Harmonize +3rd →</button>
+            <button id="asHarm5" class="mini" title="…a scale-fifth up">+5th →</button>
+          </div>
+        </div>
+
+        <div class="as-section">
+          <h3>Generate <span class="as-hint">→ cursor channel</span></h3>
+          <div class="as-row"><label>prog</label><select id="asProg"></select></div>
+          <div class="as-row">
+            <select id="asBassStyle">
+              <option value="roots">roots</option>
+              <option value="octaves">octaves</option>
+              <option value="walking">walking</option>
+              <option value="arp">arpeggio</option>
+            </select>
+            <input type="range" id="asBassDens" min="1" max="4" value="2" title="Density">
+            <button id="asGenBass" class="mini">Bass</button>
+          </div>
+          <div class="as-row">
+            <select id="asContour">
+              <option value="arch">arch</option>
+              <option value="rise">rise</option>
+              <option value="fall">fall</option>
+              <option value="wave">wave</option>
+              <option value="walk">random walk</option>
+            </select>
+            <input type="range" id="asMelDens" min="1" max="4" value="2" title="Density">
+            <button id="asGenMel" class="mini">Melody</button>
+          </div>
+          <div class="as-row"><button id="asReroll" class="mini" title="Same settings, new random seed">🎲 Reroll last</button></div>
+        </div>
+
+        <div class="as-section">
+          <h3>Touch up</h3>
+          <div class="as-row">
+            <label>amt</label><input type="range" id="asHumAmt" min="1" max="4" value="2">
+            <button id="asHumanize" class="mini" title="Velocity + micro-timing variation over the selection (or cursor channel)">Humanize</button>
+          </div>
+          <div class="as-row">
+            <select id="asEchoDelay">
+              <option value="2">2 rows</option>
+              <option value="3" selected>3 rows</option>
+              <option value="4">4 rows</option>
+              <option value="6">6 rows</option>
+              <option value="8">8 rows</option>
+            </select>
+            <button id="asEcho" class="mini" title="Copy the cursor channel into the next channel, delayed and quieter (classic tracker echo)">Echo →</button>
+            <button id="asDouble" class="mini" title="Copy the cursor channel one octave up into the next channel, quieter">8ve →</button>
+          </div>
+        </div>
+
+        <div class="as-section">
+          <h3>Analysis</h3>
+          <div class="as-row"><button id="asAnalyze" class="mini">Analyze song</button></div>
+          <div id="asReport" class="as-report"></div>
+        </div>
+      </div>
     </div>
   </section>
 </main>
@@ -255,6 +346,7 @@
         <tr><td>PAULA toggle</td><td>Amiga sound: nearest-neighbour + RC filter, E0x LED filter</td></tr>
         <tr><td>F2</td><td>effect command reference; the footer explains the effect under the cursor</td></tr>
         <tr><td>MIDI toggle</td><td>play from a MIDI keyboard — chords spread across channels, velocity records as Cxx</td></tr>
+        <tr><td>ASSIST toggle</td><td>key/scale lock, chords, generators, humanize, song analysis</td></tr>
         <tr><th colspan="2">Notes</th></tr>
         <tr><td>Z–M , L . ; /</td><td>lower octave (ProTracker layout)</td></tr>
         <tr><td>Q–P with 2 3 5 6 7 9 0</td><td>upper octave</td></tr>
@@ -289,6 +381,7 @@
 <script src="js/med.js"></script>
 <script src="js/xm.js"></script>
 <script src="js/chipsynth.js"></script>
+<script src="js/assist.js"></script>
 <script src="js/player.js"></script>
 <script src="js/patternview.js"></script>
 <script src="js/pwa.js"></script>

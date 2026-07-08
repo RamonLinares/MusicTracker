@@ -29,6 +29,8 @@
     selAnchor: null,           // {row,ch} where shift-selection started
     view: 'pattern',           // 'pattern' | 'drums'
     drumLanes: null,           // per-channel {smp, note} for the drum grid
+    assist: { root: 9, scale: 'minor', lock: false, highlight: true,
+              open: false, seed: 1, mask: null }, // music assistant
     clipboard: null,           // {rows, chs, cells:Uint8Array}
     wave: { mode: 'select', a: -1, b: -1 } // waveform editor selection (bytes)
   };
@@ -203,6 +205,8 @@
       follow: state.follow,
       paula: state.paula,
       swing: state.swing,
+      assist: { root: state.assist.root, scale: state.assist.scale,
+                lock: state.assist.lock, highlight: state.assist.highlight },
       muted: state.muted.slice(),
       bpm: parseInt($('bpmInput').value, 10) || 125,
       speed: parseInt($('speedInput').value, 10) || 6
@@ -248,6 +252,13 @@
       state.swing = clampNum(draft.swing, 50, 75, 50);
       $('swingInput').value = state.swing;
       player.msg({ type: 'swing', amount: state.swing });
+      if (draft.assist) {
+        state.assist.root = clampNum(draft.assist.root, 0, 11, 9);
+        state.assist.scale = Assist.SCALES[draft.assist.scale] ? draft.assist.scale : 'minor';
+        state.assist.lock = !!draft.assist.lock;
+        state.assist.highlight = draft.assist.highlight !== false;
+        assistSyncUi();
+      }
       state.muted = Array.isArray(draft.muted)
         ? draft.muted.slice(0, song.channels).map(Boolean)
         : new Array(song.channels).fill(false);
@@ -316,6 +327,7 @@
       speed: parseInt($('speedInput').value, 10) || 6,
       paula: state.paula,
       swing: state.swing,
+      assist: { root: state.assist.root, scale: state.assist.scale, lock: state.assist.lock },
       song
     });
   }
@@ -344,7 +356,8 @@
     return {
       song,
       paula: typeof proj.paula === 'boolean' ? proj.paula : null,
-      swing: proj.swing ? clampNum(proj.swing, 50, 75, 50) : null
+      swing: proj.swing ? clampNum(proj.swing, 50, 75, 50) : null,
+      assist: proj.assist || null
     };
   }
 
@@ -441,7 +454,8 @@
       follow: state.follow,
       muted: state.muted,
       editMode: state.editMode,
-      sel: state.sel
+      sel: state.sel,
+      scaleMask: state.assist.highlight ? state.assist.mask : null
     });
     if (state.view === 'drums') drawDrums();
   }
@@ -603,6 +617,7 @@
     $('followBtn').classList.toggle('active', state.follow);
     $('paulaBtn').classList.toggle('active', state.paula);
     $('midiBtn').classList.toggle('active', midi.on);
+    $('assistBtn').classList.toggle('active', state.assist.open);
     $('chDisp').textContent = state.song.channels;
     renderFxHint();
   }
@@ -1269,6 +1284,275 @@
   $('tabPattern').onclick = () => setView('pattern');
   $('tabDrums').onclick = () => setView('drums');
 
+  // ---- music assistant ----------------------------------------------------------
+
+  let lastGen = null; // {kind, params} for Reroll
+
+  function assistUpdateMask() {
+    state.assist.mask = Assist.scaleMask(state.assist.root, state.assist.scale);
+  }
+
+  function assistSyncUi() {
+    $('asRoot').value = String(state.assist.root);
+    $('asScale').value = state.assist.scale;
+    $('asLock').checked = state.assist.lock;
+    $('asHighlight').checked = state.assist.highlight;
+    assistUpdateMask();
+    assistRenderDiatonic();
+    drawPattern();
+  }
+
+  function assistRenderDiatonic() {
+    const box = $('asDiatonic');
+    box.innerHTML = '';
+    const triads = Assist.diatonicTriads(state.assist.root, state.assist.scale);
+    if (!triads.length) {
+      box.innerHTML = '<span class="as-hint">no diatonic chords for this scale</span>';
+      return;
+    }
+    for (const t of triads) {
+      const b = document.createElement('button');
+      b.className = 'mini as-deg';
+      b.textContent = t.roman;
+      b.title = t.label + ' — insert at the cursor';
+      b.onclick = () => insertChord(t.rootPc, t.type);
+      box.appendChild(b);
+    }
+  }
+
+  function noteForPcOct(pcVal, octave) {
+    return octave * 12 + pcVal + 1;
+  }
+
+  function insertChord(rootPc, type) {
+    const intervals = Assist.CHORDS[type] || Assist.CHORDS.maj;
+    const mode = $('asChordMode').value;
+    const p = curPattern();
+    const c = state.cursor;
+    const base = noteForPcOct(rootPc, 1); // octave 2
+    const fold = n => { while (n > 36) n -= 12; while (n < 1) n += 12; return n; };
+    pushUndo('pattern', p);
+    if (mode === 'arp' ) {
+      const x = Math.min(15, intervals[1] || 0);
+      const y = Math.min(15, intervals[intervals.length - 1] || 0);
+      MOD.cellSet(state.song, p, c.row, c.ch, base, state.curSample + 1, 0, (x << 4) | y);
+    } else if (mode === 'rows') {
+      intervals.forEach((iv, i) => {
+        if (c.row + i > 63) return;
+        MOD.cellSet(state.song, p, c.row + i, c.ch, fold(base + iv), state.curSample + 1, 0, 0);
+      });
+    } else { // spread
+      intervals.forEach((iv, i) => {
+        const ch = (c.ch + i) % state.song.channels;
+        MOD.cellSet(state.song, p, c.row, ch, fold(base + iv), state.curSample + 1, 0, 0);
+      });
+    }
+    player.sendPattern(state.song, p);
+    scheduleAutosave();
+    drawPattern();
+    setStatusMsg(`${Assist.PC_NAMES[rootPc]}${Assist.CHORD_LABELS[type] === 'maj' ? '' : Assist.CHORD_LABELS[type]} inserted (${mode})`);
+  }
+
+  function assistHarmonize(degreesUp) {
+    const p = curPattern();
+    const src = state.cursor.ch;
+    const dst = (src + 1) % state.song.channels;
+    pushUndo('pattern', p);
+    let written = 0;
+    for (let r = 0; r < 64; r++) {
+      const [n, smp] = MOD.cellGet(state.song, p, r, src);
+      if (!n) continue;
+      const [dn] = MOD.cellGet(state.song, p, r, dst);
+      if (dn) continue; // never overwrite existing notes
+      const h = Assist.harmonize(n, state.assist.root, state.assist.scale, degreesUp);
+      MOD.cellSet(state.song, p, r, dst, h, smp, 0xC, 40);
+      written++;
+    }
+    player.sendPattern(state.song, p);
+    scheduleAutosave();
+    drawPattern();
+    setStatusMsg(written
+      ? `Harmonized ch ${src + 1} → ch ${dst + 1} (+${degreesUp === 2 ? '3rd' : '5th'} in scale, ${written} notes)`
+      : `Nothing to harmonize — ch ${dst + 1} has no free cells`);
+  }
+
+  function writeGenerated(events, label) {
+    const p = curPattern();
+    const ch = state.cursor.ch;
+    pushUndo('pattern', p);
+    for (let r = 0; r < 64; r++) MOD.cellSet(state.song, p, r, ch, 0, 0, 0, 0);
+    for (const e of events) {
+      MOD.cellSet(state.song, p, e.row, ch, e.note, state.curSample + 1,
+        e.vol ? 0xC : 0, e.vol || 0);
+    }
+    player.sendPattern(state.song, p);
+    scheduleAutosave();
+    drawPattern();
+    setStatusMsg(`${label} → ch ${ch + 1} (${events.length} notes) — ⌘Z undoes, 🎲 rerolls`);
+  }
+
+  function genBass() {
+    const params = {
+      root: state.assist.root, scale: state.assist.scale,
+      progression: $('asProg').value, style: $('asBassStyle').value,
+      density: parseInt($('asBassDens').value, 10), seed: state.assist.seed
+    };
+    lastGen = { kind: 'bass', params };
+    writeGenerated(Assist.generateBass(params), 'Bassline');
+  }
+
+  function genMelody() {
+    const params = {
+      root: state.assist.root, scale: state.assist.scale,
+      contour: $('asContour').value,
+      density: parseInt($('asMelDens').value, 10), seed: state.assist.seed
+    };
+    lastGen = { kind: 'melody', params };
+    writeGenerated(Assist.generateMelody(params), 'Melody');
+  }
+
+  function assistHumanize() {
+    const amount = parseInt($('asHumAmt').value, 10);
+    const p = curPattern();
+    const region = state.sel || { r0: 0, r1: 63, c0: state.cursor.ch, c1: state.cursor.ch };
+    pushUndo('pattern', p);
+    let touched = 0;
+    for (let r = region.r0; r <= region.r1; r++) {
+      for (let ch = region.c0; ch <= region.c1; ch++) {
+        const [n, smp, f, pm] = MOD.cellGet(state.song, p, r, ch);
+        if (!n) continue;
+        if (f === 0 && pm === 0) {
+          if (Math.random() < 0.6) { // velocity jitter
+            const vol = Math.max(24, 64 - Math.round(Math.random() * amount * 9));
+            if (vol < 64) { MOD.cellSet(state.song, p, r, ch, n, smp, 0xC, vol); touched++; }
+          } else if (r % 4 !== 0 && Math.random() < amount * 0.12) { // micro-timing
+            MOD.cellSet(state.song, p, r, ch, n, smp, 0xE, 0xD1);
+            touched++;
+          }
+        } else if (f === 0xC && Math.random() < 0.7) {
+          const vol = Math.max(8, Math.min(64, pm + Math.round((Math.random() - 0.5) * amount * 8)));
+          MOD.cellSet(state.song, p, r, ch, n, smp, 0xC, vol);
+          touched++;
+        }
+      }
+    }
+    player.sendPattern(state.song, p);
+    scheduleAutosave();
+    drawPattern();
+    setStatusMsg(`Humanized ${touched} notes (velocity + micro-timing)`);
+  }
+
+  function assistCopyToNext(transpose, volScale, delay, label) {
+    const p = curPattern();
+    const src = state.cursor.ch;
+    const dst = (src + 1) % state.song.channels;
+    pushUndo('pattern', p);
+    let written = 0;
+    for (let r = 0; r < 64; r++) {
+      const [n, smp, f, pm] = MOD.cellGet(state.song, p, r, src);
+      if (!n) continue;
+      const tr = (r + delay) % 64;
+      const [dn] = MOD.cellGet(state.song, p, tr, dst);
+      if (dn) continue;
+      let note = n + transpose;
+      while (note > 36) note -= 12;
+      const srcVol = f === 0xC ? pm : (state.song.samples[smp - 1] ? state.song.samples[smp - 1].volume : 64);
+      const vol = Math.max(4, Math.round(srcVol * volScale));
+      MOD.cellSet(state.song, p, tr, dst, note, smp, 0xC, vol);
+      written++;
+    }
+    player.sendPattern(state.song, p);
+    scheduleAutosave();
+    drawPattern();
+    setStatusMsg(written
+      ? `${label}: ch ${src + 1} → ch ${dst + 1} (${written} notes)`
+      : `${label}: no free cells in ch ${dst + 1}`);
+  }
+
+  function assistRenderReport() {
+    const rep = Assist.analyze(state.song, curPattern());
+    const esc = escapeHtml;
+    let html = '';
+    if (rep.key) {
+      html += `<p><b>Key:</b> ${Assist.PC_NAMES[rep.key.root]} ${Assist.SCALE_LABELS[rep.key.scale]}` +
+        ` <span class="as-hint">(${Math.round(rep.key.confidence * 100)}% sure)</span></p>`;
+    }
+    if (rep.chords.length) {
+      html += `<p><b>Bars:</b> ${rep.chords.map(esc).join(' · ')}</p>`;
+    }
+    html += '<p><b>Channels:</b><br>' + rep.channels.map((c, i) =>
+      `&nbsp;${i + 1}: ${esc(c.role)}${c.notes ? ` <span class="as-hint">(${c.notes} notes)</span>` : ''}`
+    ).join('<br>') + '</p>';
+    for (const e of rep.echoes) {
+      html += `<p>ch ${e.dst + 1} echoes ch ${e.src + 1} (+${e.delay} rows)</p>`;
+    }
+    if (rep.tips.length) {
+      html += '<p><b>Tips:</b></p>' + rep.tips.map(t => `<p class="as-tip">💡 ${esc(t)}</p>`).join('');
+    } else {
+      html += '<p class="as-tip">✓ No complaints — sounds like you know what you\'re doing.</p>';
+    }
+    $('asReport').innerHTML = html;
+  }
+
+  (function initAssistUi() {
+    Assist.PC_NAMES.forEach((n, i) => {
+      $('asRoot').insertAdjacentHTML('beforeend', `<option value="${i}">${n}</option>`);
+      $('asChordRoot').insertAdjacentHTML('beforeend', `<option value="${i}">${n}</option>`);
+    });
+    for (const [key, label] of Object.entries(Assist.SCALE_LABELS)) {
+      $('asScale').insertAdjacentHTML('beforeend', `<option value="${key}">${label}</option>`);
+    }
+    for (const [key, label] of Object.entries(Assist.CHORD_LABELS)) {
+      $('asChordType').insertAdjacentHTML('beforeend', `<option value="${key}">${label}</option>`);
+    }
+    for (const name of Object.keys(Assist.PROGRESSIONS)) {
+      $('asProg').insertAdjacentHTML('beforeend', `<option>${name}</option>`);
+    }
+    $('asProg').value = 'i–VI–III–VII';
+
+    $('asRoot').onchange = () => { state.assist.root = parseInt($('asRoot').value, 10); assistSyncUi(); scheduleAutosave(); };
+    $('asScale').onchange = () => { state.assist.scale = $('asScale').value; assistSyncUi(); scheduleAutosave(); };
+    $('asLock').onchange = () => { state.assist.lock = $('asLock').checked; scheduleAutosave(); };
+    $('asHighlight').onchange = () => { state.assist.highlight = $('asHighlight').checked; drawPattern(); scheduleAutosave(); };
+    $('asDetect').onclick = () => {
+      const k = Assist.detectKey(state.song);
+      if (!k) { setStatusMsg('No notes to analyze yet'); return; }
+      state.assist.root = k.root;
+      state.assist.scale = k.scale;
+      assistSyncUi();
+      scheduleAutosave();
+      setStatusMsg(`Detected ${Assist.PC_NAMES[k.root]} ${Assist.SCALE_LABELS[k.scale]} ` +
+        `(${Math.round(k.confidence * 100)}% sure)`);
+    };
+    $('asChordIns').onclick = () => insertChord(parseInt($('asChordRoot').value, 10), $('asChordType').value);
+    $('asHarm3').onclick = () => assistHarmonize(2);
+    $('asHarm5').onclick = () => assistHarmonize(4);
+    $('asGenBass').onclick = () => genBass();
+    $('asGenMel').onclick = () => genMelody();
+    $('asReroll').onclick = () => {
+      if (!lastGen) { setStatusMsg('Generate something first, then reroll it'); return; }
+      state.assist.seed++;
+      lastGen.params.seed = state.assist.seed;
+      writeGenerated(lastGen.kind === 'bass'
+        ? Assist.generateBass(lastGen.params)
+        : Assist.generateMelody(lastGen.params),
+        lastGen.kind === 'bass' ? 'Bassline' : 'Melody');
+    };
+    $('asHumanize').onclick = () => assistHumanize();
+    $('asEcho').onclick = () => assistCopyToNext(0, 0.5, parseInt($('asEchoDelay').value, 10), 'Echo');
+    $('asDouble').onclick = () => assistCopyToNext(12, 0.6, 0, 'Octave double');
+    $('asAnalyze').onclick = () => assistRenderReport();
+    $('assistBtn').onclick = () => {
+      state.assist.open = !state.assist.open;
+      $('assistPanel').classList.toggle('hidden', !state.assist.open);
+      renderStatus();
+      if (state.assist.open) assistSyncUi();
+      drawPattern(); // canvas width changes
+    };
+    assistUpdateMask();
+    assistSyncUi();
+  })();
+
   // ---- MIDI input -----------------------------------------------------------
 
   const midi = { access: null, on: false, held: {} };
@@ -1294,7 +1578,8 @@
   async function onMidiMessage(data) {
     const type = data[0] & 0xF0, d1 = data[1], d2 = data[2];
     if (type === 0x90 && d2 > 0) {          // note on
-      const note = midiNoteToTracker(d1);
+      let note = midiNoteToTracker(d1);
+      if (state.assist.lock) note = Assist.snap(note, state.assist.root, state.assist.scale);
       const vol = Math.max(1, Math.min(64, Math.round(d2 / 2)));
       await player.ensure();
       if (!player._sentOnce) player.sendSong(state.song);
@@ -1469,6 +1754,7 @@
       if (e.repeat) return;
       let note = (state.octave - 1) * 12 + NOTE_KEYS[code] + 1;
       if (note > 36) note = 36;
+      if (state.assist.lock) note = Assist.snap(note, state.assist.root, state.assist.scale);
       jamNote(note, code);
       if (state.editMode && !state.playing) {
         patchCell(() => {
@@ -1763,7 +2049,7 @@
       let i = 0;
       while (i < head.length && (head[i] === 32 || head[i] === 9 || head[i] === 10 || head[i] === 13)) i++;
       if (head[i] === 0x7B) { // '{' — a WebTracker .wtp project
-        const { song, paula, swing } = parseProjectJson(new TextDecoder().decode(buf));
+        const { song, paula, swing, assist } = parseProjectJson(new TextDecoder().decode(buf));
         adoptSong(song, `Loaded project "${song.title || file.name}" — ${song.channels}ch, ` +
           `${song.patterns.length} patterns`);
         if (paula !== null && paula !== state.paula) {
@@ -1775,6 +2061,12 @@
           state.swing = swing;
           $('swingInput').value = swing;
           player.msg({ type: 'swing', amount: swing });
+        }
+        if (assist) {
+          state.assist.root = clampNum(assist.root, 0, 11, 9);
+          state.assist.scale = Assist.SCALES[assist.scale] ? assist.scale : 'minor';
+          state.assist.lock = !!assist.lock;
+          assistSyncUi();
         }
         return;
       }

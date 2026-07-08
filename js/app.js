@@ -26,6 +26,8 @@
     jamHeld: {},               // code -> channel, for keyup of looped jam notes
     sel: null,                 // normalized {r0,c0,r1,c1} or null
     selAnchor: null,           // {row,ch} where shift-selection started
+    view: 'pattern',           // 'pattern' | 'drums'
+    drumLanes: null,           // per-channel {smp, note} for the drum grid
     clipboard: null,           // {rows, chs, cells:Uint8Array}
     wave: { mode: 'select', a: -1, b: -1 } // waveform editor selection (bytes)
   };
@@ -427,6 +429,7 @@
       editMode: state.editMode,
       sel: state.sel
     });
+    if (state.view === 'drums') drawDrums();
   }
 
   function renderChannelHeaders() {
@@ -1030,6 +1033,226 @@
     drawPattern();
   }
 
+  // ---- drum machine view -------------------------------------------------------
+  // an x0x-style lens over the current pattern: rows = channels ("lanes"),
+  // columns = the 64 pattern rows as steps; edits write ordinary pattern cells
+
+  const DRUM = { CELL_W: 16, CELL_H: 26, GAP4: 2, GAP16: 8 };
+  const VEL_CYCLE = { 64: 48, 48: 32, 32: 16, 16: 64 };
+
+  function stepX(i) {
+    return i * DRUM.CELL_W + Math.floor(i / 4) * DRUM.GAP4 + Math.floor(i / 16) * DRUM.GAP16;
+  }
+
+  function laneDefaults(ch) {
+    // pick the most used sample/note in this channel of the current pattern
+    const counts = {};
+    const p = curPattern();
+    for (let r = 0; r < 64; r++) {
+      const [n, s] = MOD.cellGet(state.song, p, r, ch);
+      if (n && s) {
+        const key = s + ':' + n;
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    }
+    const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (best) {
+      const [s, n] = best[0].split(':').map(Number);
+      return { smp: s, note: n };
+    }
+    return { smp: Math.min(31, ch + 1), note: 13 };
+  }
+
+  function ensureDrumLanes() {
+    if (!state.drumLanes) state.drumLanes = [];
+    while (state.drumLanes.length < state.song.channels) {
+      state.drumLanes.push(laneDefaults(state.drumLanes.length));
+    }
+    state.drumLanes.length = state.song.channels;
+  }
+
+  function drumHit(row, ch) {
+    const [n, s, f, pm] = MOD.cellGet(state.song, curPattern(), row, ch);
+    if (!n) return null;
+    return { note: n, smp: s, vel: f === 0xC ? Math.min(64, pm) : 64, fx: f, pm };
+  }
+
+  function renderDrumLanes() {
+    ensureDrumLanes();
+    const box = $('drumLanes');
+    box.innerHTML = '';
+    for (let ch = 0; ch < state.song.channels; ch++) {
+      const lane = state.drumLanes[ch];
+      const row = document.createElement('div');
+      row.className = 'drum-lane';
+      const smpOpts = state.song.samples.map((s, i) =>
+        `<option value="${i + 1}"${i + 1 === lane.smp ? ' selected' : ''}>` +
+        `${(i + 1).toString(16).toUpperCase().padStart(2, '0')} ${escapeHtml((s.name || '').slice(0, 9))}</option>`).join('');
+      const noteOpts = Array.from({ length: 36 }, (_, i) =>
+        `<option value="${i + 1}"${i + 1 === lane.note ? ' selected' : ''}>${MOD.noteName(i + 1)}</option>`).join('');
+      row.innerHTML =
+        `<span class="dl-ch">${ch + 1}</span>` +
+        `<select class="dl-smp" title="Lane sample">${smpOpts}</select>` +
+        `<select class="dl-note" title="Lane note">${noteOpts}</select>` +
+        `<input class="dl-hits" type="number" min="0" max="16" value="4" title="Euclidean hits per 16-step bar">` +
+        `<input class="dl-rot" type="number" min="0" max="15" value="0" title="Euclidean rotation">` +
+        `<button class="dl-fill mini" title="Fill lane with a Euclidean rhythm">E</button>` +
+        `<button class="dl-clear mini" title="Clear lane">✕</button>`;
+      row.querySelector('.dl-smp').onchange = e => { lane.smp = parseInt(e.target.value, 10); };
+      row.querySelector('.dl-note').onchange = e => { lane.note = parseInt(e.target.value, 10); };
+      row.querySelector('.dl-fill').onclick = () => {
+        euclidFill(ch,
+          parseInt(row.querySelector('.dl-hits').value, 10) || 0,
+          parseInt(row.querySelector('.dl-rot').value, 10) || 0);
+      };
+      row.querySelector('.dl-clear').onclick = () => {
+        const p = curPattern();
+        pushUndo('pattern', p);
+        for (let r = 0; r < 64; r++) MOD.cellSet(state.song, p, r, ch, 0, 0, 0, 0);
+        player.sendPattern(state.song, p);
+        scheduleAutosave();
+        drawDrums();
+      };
+      box.appendChild(row);
+    }
+  }
+
+  function euclidStep(i, k, rot) { // evenly distribute k hits over 16 steps
+    if (k <= 0) return false;
+    const s = ((i - rot) % 16 + 16) % 16;
+    return Math.floor(((s + 1) * k) / 16) !== Math.floor((s * k) / 16);
+  }
+
+  function euclidFill(ch, hits, rot) {
+    ensureDrumLanes();
+    const lane = state.drumLanes[ch];
+    const p = curPattern();
+    pushUndo('pattern', p);
+    for (let r = 0; r < 64; r++) {
+      if (euclidStep(r % 16, hits, rot)) {
+        MOD.cellSet(state.song, p, r, ch, lane.note, lane.smp, 0, 0);
+      } else {
+        MOD.cellSet(state.song, p, r, ch, 0, 0, 0, 0);
+      }
+    }
+    player.sendPattern(state.song, p);
+    scheduleAutosave();
+    drawDrums();
+    setStatusMsg(`Lane ${ch + 1}: Euclidean E(${hits},16)` + (rot ? ` rotated ${rot}` : ''));
+  }
+
+  function drawDrums() {
+    ensureDrumLanes();
+    const canvas = $('drumGrid');
+    const dpr = window.devicePixelRatio || 1;
+    const chs = state.song.channels;
+    const w = stepX(63) + DRUM.CELL_W + 2;
+    const h = chs * DRUM.CELL_H;
+    if (canvas.width !== Math.round(w * dpr)) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#0d1017';
+    ctx.fillRect(0, 0, w, h);
+    for (let ch = 0; ch < chs; ch++) {
+      const y = ch * DRUM.CELL_H;
+      for (let i = 0; i < 64; i++) {
+        const x = stepX(i);
+        const beat = i % 4 === 0;
+        ctx.fillStyle = beat ? '#1c2438' : '#141926';
+        ctx.fillRect(x, y + 2, DRUM.CELL_W - 2, DRUM.CELL_H - 5);
+        const hit = drumHit(i, ch);
+        if (hit) {
+          ctx.fillStyle = state.muted[ch] ? '#5a5148' : '#ffa040';
+          ctx.globalAlpha = 0.35 + (hit.vel / 64) * 0.65;
+          ctx.fillRect(x + 1, y + 3, DRUM.CELL_W - 4, DRUM.CELL_H - 7);
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+    if (state.playing && state.playRow >= 0) {
+      ctx.fillStyle = 'rgba(140,180,255,0.22)';
+      ctx.fillRect(stepX(state.playRow), 0, DRUM.CELL_W - 2, h);
+    }
+  }
+
+  function drumCellAt(px, py) {
+    const ch = Math.floor(py / DRUM.CELL_H);
+    if (ch < 0 || ch >= state.song.channels) return null;
+    for (let i = 0; i < 64; i++) {
+      const x = stepX(i);
+      if (px >= x && px < x + DRUM.CELL_W - 1) return { step: i, ch };
+    }
+    return null;
+  }
+
+  let drumDrag = null;
+
+  function applyDrumEdit(step, ch, mode) {
+    const lane = state.drumLanes[ch];
+    const p = curPattern();
+    if (mode === 'add') MOD.cellSet(state.song, p, step, ch, lane.note, lane.smp, 0, 0);
+    else MOD.cellSet(state.song, p, step, ch, 0, 0, 0, 0);
+    player.sendPattern(state.song, p);
+    scheduleAutosave();
+    drawDrums();
+  }
+
+  $('drumGrid').addEventListener('mousedown', e => {
+    const r = $('drumGrid').getBoundingClientRect();
+    const cell = drumCellAt(e.clientX - r.left, e.clientY - r.top);
+    if (!cell) return;
+    const hit = drumHit(cell.step, cell.ch);
+    const p = curPattern();
+    pushUndo('pattern', p);
+    if (e.shiftKey && hit) { // cycle velocity
+      const next = VEL_CYCLE[hit.vel] || 48;
+      MOD.cellSet(state.song, p, cell.step, cell.ch, hit.note, hit.smp,
+        next === 64 ? 0 : 0xC, next === 64 ? 0 : next);
+      player.sendPattern(state.song, p);
+      scheduleAutosave();
+      drawDrums();
+      return;
+    }
+    drumDrag = { mode: hit ? 'erase' : 'add', last: cell.step + ':' + cell.ch };
+    applyDrumEdit(cell.step, cell.ch, drumDrag.mode);
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!drumDrag) return;
+    const r = $('drumGrid').getBoundingClientRect();
+    const cell = drumCellAt(e.clientX - r.left, e.clientY - r.top);
+    if (!cell) return;
+    const key = cell.step + ':' + cell.ch;
+    if (key === drumDrag.last) return;
+    drumDrag.last = key;
+    const hit = drumHit(cell.step, cell.ch);
+    if ((drumDrag.mode === 'add') !== !!hit) applyDrumEdit(cell.step, cell.ch, drumDrag.mode);
+  });
+
+  window.addEventListener('mouseup', () => { drumDrag = null; });
+
+  function setView(v) {
+    state.view = v;
+    $('tabPattern').classList.toggle('active', v === 'pattern');
+    $('tabDrums').classList.toggle('active', v === 'drums');
+    document.querySelector('.pattern-wrap').classList.toggle('hidden', v !== 'pattern');
+    $('chanHeaders').classList.toggle('hidden', v !== 'pattern');
+    $('drumPanel').classList.toggle('hidden', v !== 'drums');
+    if (v === 'drums') {
+      renderDrumLanes();
+      drawDrums();
+    }
+  }
+
+  $('tabPattern').onclick = () => setView('pattern');
+  $('tabDrums').onclick = () => setView('drums');
+
   // ---- MIDI input -----------------------------------------------------------
 
   const midi = { access: null, on: false, held: {} };
@@ -1405,6 +1628,7 @@
     player.setMute(state.muted);
     renderAll();
     drawScopes(null);
+    if (state.view === 'drums') renderDrumLanes();
     scheduleAutosave();
     setStatusMsg(`${n} channels — saves as ${n === 4 ? 'M.K.' : n + 'CHN'}` +
       (n === 5 || n === 7 ? ' (rare tag; 4, 6 or 8 channels is most compatible)' : ''));
@@ -1480,12 +1704,14 @@
     state.curSample = 0;
     state.muted = new Array(song.channels).fill(false);
     state.wave.a = state.wave.b = -1;
+    state.drumLanes = null;
     clearHistory();
     if (song.initBPM) $('bpmInput').value = song.initBPM;
     if (song.initSpeed) $('speedInput').value = song.initSpeed;
     player.sendSong(song);
     player.setMute(state.muted);
     renderAll();
+    if (state.view === 'drums') renderDrumLanes();
     if (msg) setStatusMsg(msg);
     scheduleAutosave();
   }

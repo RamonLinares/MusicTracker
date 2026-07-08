@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added a drum machine view (DRUMS tab): an x0x-style step grid over the
+  current pattern with per-lane sample/note, drag painting, velocity cycling
+  via Shift+click, and per-lane Euclidean rhythm fills with rotation.
 - Added a Chip Synthesizer (Synth button in the sample panel): designs synth
   instruments — waveform/duty, PWM sweep, attack/decay/sustain, chord
   arpeggios, pitch slide, vibrato — compiled to OctaMED-style synth programs

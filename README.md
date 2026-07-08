@@ -96,6 +96,12 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   chord arpeggios, pitch slides (kicks, zaps), and vibrato. Everything
   compiles to OctaMED-style synth programs played by the built-in engine,
   updates live while the song plays, and saves into `.wtp` projects.
+- **Drum machine view** — the DRUMS tab shows the pattern as an x0x step
+  grid: one lane per channel with its own sample and note, click/drag to
+  paint hits, Shift+click to cycle velocity, and per-lane **Euclidean
+  rhythm fills** (hits + rotation, Elektron style). It is just another lens
+  on the same pattern data, so undo, playback, and all file formats keep
+  working.
 - **Song editor** — order list (up to 128 positions), insert/delete positions,
   per-position pattern assignment, oscilloscopes per channel, **4–8 channels**
   (CH −/+ in the order bar; 4-channel songs save as `M.K.`, others as

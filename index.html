@@ -146,9 +146,17 @@
 
   <section class="editor">
     <div id="scopes"></div>
+    <div id="viewTabs">
+      <button id="tabPattern" class="vtab active">PATTERN</button>
+      <button id="tabDrums" class="vtab" title="Drum machine view: step grid + Euclidean fills over the same pattern">DRUMS</button>
+    </div>
     <div id="chanHeaders"></div>
     <div class="pattern-wrap">
       <canvas id="pattern"></canvas>
+    </div>
+    <div id="drumPanel" class="drum-panel hidden">
+      <div id="drumLanes"></div>
+      <div class="drum-scroll"><canvas id="drumGrid" title="Click: toggle hit · drag: paint · Shift+click: cycle velocity"></canvas></div>
     </div>
   </section>
 </main>

@@ -2,11 +2,11 @@
 
 ## Unreleased
 
-- Added a synchronized standard-notation SCORE editor powered by VexFlow:
-  channel, clef, key signature, meter and grid controls; instrument and tracker
-  effect annotations; row selection; editable note/instrument/effect fields;
-  undo-safe pattern writes; key detection; playback following; and notation
-  metadata in autosave and `.wtp` projects.
+- Added a synchronized standard-notation SCORE view powered by VexFlow: one
+  staff per channel, a seamless horizontal song timeline with visible pattern
+  boundaries, normal tracker keyboard editing and navigation, instrument and
+  effect annotations, key detection, playback following, and notation metadata
+  in autosave and `.wtp` projects.
 - Redesigned 3D CORE as a semantic spatial score: channels, pitch and rows now
   own consistent X/Y/Z axes; instrument and volume drive note appearance;
   beat/bar guides, effect events, row activity, camera modes, live cell detail,

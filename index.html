@@ -166,10 +166,9 @@
         <div class="drum-scroll"><canvas id="drumGrid" title="Click: toggle hit · drag: paint · Shift+click: cycle velocity"></canvas></div>
       </div>
 
-      <div id="scorePanel" class="score-panel hidden">
+      <div id="scorePanel" class="score-panel hidden" tabindex="0">
         <div class="score-toolbar">
           <div class="score-control-group">
-            <label>Channel<select id="scoreChannel"></select></label>
             <label>Clef<select id="scoreClef">
               <option value="treble">Treble</option>
               <option value="bass">Bass</option>
@@ -193,19 +192,10 @@
               <option value="8">32nd</option>
             </select></label>
           </div>
-          <div class="score-control-group score-cell-editor">
-            <span class="score-row-label">Row <b id="scoreRow">00</b></span>
-            <label>Note<select id="scoreNote"></select></label>
-            <label>Instrument<select id="scoreInstrument"></select></label>
-            <label>Effect<select id="scoreEffect"></select></label>
-            <label>Param<input id="scoreParam" type="text" value="00" maxlength="2" inputmode="text" spellcheck="false"></label>
-            <button id="scoreWrite" type="button">Write</button>
-            <button id="scoreClear" type="button">Clear</button>
-          </div>
         </div>
-        <div id="scoreCellInfo" class="score-cell-info">ROW 00 · EMPTY</div>
+        <div id="scoreCellInfo" class="score-cell-info">POS 00 · PAT 00 · ROW 00 · CH 1 · EMPTY</div>
         <div id="scoreScroll" class="score-scroll">
-          <div id="scoreSheet" class="score-sheet"></div>
+          <div id="scoreSong" class="score-song"></div>
         </div>
         <div id="scoreFallback" class="score-fallback hidden">Notation engine unavailable</div>
       </div>

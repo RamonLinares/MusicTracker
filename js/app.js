@@ -6,7 +6,7 @@
   const $ = id => document.getElementById(id);
 
   const player = new Player();
-  const SCORE_DEFAULT = { key: 'Am', time: '4/4', clef: 'bass', grid: 4, channel: 0 };
+  const SCORE_DEFAULT = { key: 'Am', time: '4/4', clef: 'bass', grid: 4 };
 
   const state = {
     song: MOD.demoSong(),
@@ -263,7 +263,7 @@
         assistSyncUi();
       }
       if (draft.score) {
-        state.score = normalizeScoreMeta(draft.score, song.channels);
+        state.score = normalizeScoreMeta(draft.score);
       }
       state.muted = Array.isArray(draft.muted)
         ? draft.muted.slice(0, song.channels).map(Boolean)
@@ -1313,15 +1313,14 @@
   const SCORE_ROOTS = { C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4,
     F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11, Cb: 11 };
 
-  function normalizeScoreMeta(meta, channels = state.song.channels) {
+  function normalizeScoreMeta(meta) {
     const key = SCORE_KEYS.has(meta && meta.key) ? meta.key : SCORE_DEFAULT.key;
     const time = SCORE_TIMES.has(meta && meta.time) ? meta.time : SCORE_DEFAULT.time;
     const clef = SCORE_CLEFS.has(meta && meta.clef) ? meta.clef : SCORE_DEFAULT.clef;
     let grid = [1, 2, 4, 8].includes(Number(meta && meta.grid)) ? Number(meta.grid) : SCORE_DEFAULT.grid;
     const [beats, denominator] = time.split('/').map(Number);
     if (denominator === 8 && beats % 2 && grid === 1) grid = 2;
-    const channel = clampNum(meta && meta.channel, 0, channels - 1, 0) | 0;
-    return { key, time, clef, grid, channel };
+    return { key, time, clef, grid };
   }
 
   function syncAssistToScoreKey(key) {
@@ -1354,23 +1353,18 @@
     return { key, confidence: detected.confidence };
   }
 
-  function editScoreCell(row, ch, cell) {
-    const pattern = curPattern();
-    const safeRow = clampNum(row, 0, 63, state.cursor.row) | 0;
-    const safeChannel = clampNum(ch, 0, state.song.channels - 1, state.cursor.ch) | 0;
-    pushUndo('pattern', pattern);
-    MOD.cellSet(state.song, pattern, safeRow, safeChannel,
-      clampNum(cell.note, 0, 36, 0) | 0,
-      clampNum(cell.smp, 0, 31, 0) | 0,
-      clampNum(cell.fx, 0, 15, 0) | 0,
-      clampNum(cell.pm, 0, 255, 0) | 0);
-    state.cursor = { row: safeRow, ch: safeChannel, col: 0 };
+  function setScoreCursor(pos, row, ch) {
+    state.curPos = clampNum(pos, 0, state.song.order.length - 1, state.curPos) | 0;
+    state.cursor = {
+      row: clampNum(row, 0, 63, state.cursor.row) | 0,
+      ch: clampNum(ch, 0, state.song.channels - 1, state.cursor.ch) | 0,
+      col: 0
+    };
     clearSel();
-    player.sendPattern(state.song, pattern);
-    scheduleAutosave();
+    renderOrder();
     renderStatus();
     drawPattern();
-    window.WebTracker3D?.refresh();
+    window.WebTrackerScore?.refresh();
   }
 
   // ---- music assistant ----------------------------------------------------------
@@ -2215,7 +2209,7 @@
     state.muted = new Array(song.channels).fill(false);
     state.wave.a = state.wave.b = -1;
     state.drumLanes = null;
-    state.score = normalizeScoreMeta({ ...state.score, channel: 0 }, song.channels);
+    state.score = normalizeScoreMeta(state.score);
     clearHistory();
     if (song.initBPM) $('bpmInput').value = song.initBPM;
     if (song.initSpeed) $('speedInput').value = song.initSpeed;
@@ -2271,7 +2265,7 @@
           state.assist.lock = !!assist.lock;
           assistSyncUi();
         }
-        if (score) state.score = normalizeScoreMeta(score, song.channels);
+        if (score) state.score = normalizeScoreMeta(score);
         window.WebTrackerScore?.refresh(true);
         return;
       }
@@ -3033,7 +3027,7 @@
       },
       updateScoreMeta,
       detectScoreKey,
-      editScoreCell,
+      setScoreCursor,
       describeEffect: describeFx,
       setCursor: (row, ch) => {
         state.cursor.row = clampNum(row, 0, 63, state.cursor.row) | 0;

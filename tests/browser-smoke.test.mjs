@@ -226,6 +226,26 @@ try {
     document.querySelectorAll('.score-position[data-pos="0"] .score-inline-measure svg').length === 40);
   assert.equal(await page.inputValue('#scoreGrid'), '2', 'odd eighth meters should use at least an eighth-note row grid');
 
+  // Follow mode interpolates the score camera every frame instead of snapping
+  // only when the tracker advances to a new row.
+  await page.click('#btnPlayPat');
+  await page.waitForFunction(() => window.tracker.state.playRow >= 16, { timeout: 10000 });
+  const smoothScroll = await page.evaluate(async () => {
+    const values = [];
+    for (let frame = 0; frame < 6; frame++) {
+      await new Promise(requestAnimationFrame);
+      values.push(document.getElementById('scoreScroll').scrollLeft);
+    }
+    return values;
+  });
+  const frameDeltas = smoothScroll.slice(1).map((value, index) => value - smoothScroll[index]);
+  assert.ok(frameDeltas.filter(delta => Math.abs(delta) > 0.1).length >= 3,
+    'score follow should move on multiple animation frames within a tracker row');
+  assert.ok(Math.max(...frameDeltas.map(Math.abs)) < 40,
+    'score follow should not jump by a large distance between animation frames');
+  await page.click('#btnStop');
+  await page.waitForFunction(() => !window.tracker.state.playing, { timeout: 5000 });
+
   // Song playback follows the timeline across the order boundary and marks the
   // current row on every channel while preserving the separate position cue.
   await page.fill('#bpmInput', '255');

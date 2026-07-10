@@ -4,7 +4,8 @@
 
 - Fixed SCORE timing alignment by formatting every channel against one shared
   rhythmic grid, keeping notes, edit targets, and playback markers vertically
-  synchronized across all staves.
+  synchronized across all staves. Follow mode now interpolates horizontal
+  movement every animation frame for continuous scrolling between tracker rows.
 - Added a synchronized standard-notation SCORE view powered by VexFlow: one
   staff per channel, a seamless horizontal song timeline with visible pattern
   boundaries, normal tracker keyboard editing and navigation, instrument and

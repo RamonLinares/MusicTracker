@@ -37,6 +37,8 @@
       this.lastFocusKey = '';
       this.enginePromise = null;
       this.observer = null;
+      this.followFrame = 0;
+      this.followLastTime = 0;
       this.initControls();
     }
 
@@ -77,7 +79,10 @@
 
     setActive(active) {
       this.active = active;
-      if (!active) return;
+      if (!active) {
+        this.stopPlaybackFollow();
+        return;
+      }
       this.ensureEngine().then(() => {
         if (!this.active || this.failed) return;
         this.refresh(true);
@@ -317,17 +322,29 @@
         return { channel, wrapper, context, stave, notes, voice };
       });
 
-      const voices = systems.map(system => system.voice);
       const referenceStave = systems[0].stave;
-      new VF.Formatter().joinVoices(voices).format(
-        voices, referenceStave.getNoteEndX() - referenceStave.getNoteStartX() - 8);
+      const formatWidth = referenceStave.getNoteEndX() - referenceStave.getNoteStartX() - 8;
+      for (const system of systems) {
+        new VF.Formatter().joinVoices([system.voice]).format([system.voice], formatWidth);
+      }
+
+      // Keep per-staff modifier layout, then pin every voice to tracker-time columns.
+      const noteStartX = referenceStave.getNoteStartX();
+      const noteEndX = referenceStave.getNoteEndX();
+      const centers = systems[0].notes.map((note, slot, notes) =>
+        noteStartX + (slot + 0.5) * (noteEndX - noteStartX) / notes.length);
+      for (const system of systems) {
+        system.notes.forEach((note, slot) => {
+          const tickContext = note.getTickContext();
+          tickContext.setX(tickContext.getX() + centers[slot] - note.getAbsoluteX());
+        });
+      }
 
       for (const system of systems) {
         system.voice.draw(system.context, system.stave);
         VF.Beam.generateBeams(system.notes).forEach(beam => beam.setContext(system.context).draw());
       }
 
-      const centers = systems[0].notes.map(note => note.getAbsoluteX());
       for (const { channel, wrapper, stave } of systems) {
         centers.forEach((center, slot) => {
           const trackerRow = startRow + slot;
@@ -383,6 +400,9 @@
         }
       }
 
+      if (playPosition >= 0 && state.follow) this.startPlaybackFollow();
+      else this.stopPlaybackFollow();
+
       const focusKey = playPosition >= 0
         ? `play:${playPosition}:${state.playRow}`
         : `edit:${state.curPos}:${state.cursor.row}:${state.cursor.ch}`;
@@ -392,14 +412,74 @@
           ? this.songElement.querySelector(
             `.score-hit[data-pos="${playPosition}"][data-row="${state.playRow}"][data-ch="${state.cursor.ch}"]`)
           : selected;
-        if ((playPosition >= 0 && state.follow) || document.activeElement === this.panel) {
+        if (playPosition < 0 && document.activeElement === this.panel) {
           target?.scrollIntoView({
-            behavior: playPosition >= 0 ? 'auto' : 'smooth',
+            behavior: 'smooth',
             inline: 'center',
             block: 'nearest'
           });
         }
       }
+    }
+
+    startPlaybackFollow() {
+      if (this.followFrame) return;
+      this.followLastTime = performance.now();
+      this.followFrame = requestAnimationFrame(now => this.animatePlaybackFollow(now));
+    }
+
+    stopPlaybackFollow() {
+      if (this.followFrame) cancelAnimationFrame(this.followFrame);
+      this.followFrame = 0;
+      this.followLastTime = 0;
+    }
+
+    animatePlaybackFollow(now) {
+      const state = this.state;
+      if (!this.active || !state?.playing || !state.follow || state.playPos < 0 || state.playRow < 0) {
+        this.followFrame = 0;
+        this.followLastTime = 0;
+        return;
+      }
+
+      let nextPosition = state.playPos;
+      let nextRow = state.playRow + 1;
+      if (nextRow >= ROWS) {
+        nextRow = 0;
+        nextPosition = Math.min(state.playPos + 1, this.song.order.length - 1);
+      }
+      this.ensurePosition(state.playPos);
+      this.ensurePosition(nextPosition);
+
+      const current = this.songElement.querySelector(
+        `.score-hit[data-pos="${state.playPos}"][data-row="${state.playRow}"][data-ch="0"]`);
+      const next = this.songElement.querySelector(
+        `.score-hit[data-pos="${nextPosition}"][data-row="${nextRow}"][data-ch="0"]`) || current;
+      if (current && next) {
+        const scrollBounds = this.scroll.getBoundingClientRect();
+        const contentCenter = hit => {
+          const bounds = hit.getBoundingClientRect();
+          return this.scroll.scrollLeft + bounds.left - scrollBounds.left + bounds.width / 2;
+        };
+        const bpm = Number(document.getElementById('bpmInput').value) || 125;
+        const speed = Number(document.getElementById('speedInput').value) || 6;
+        const swing = state.swing > 50
+          ? (state.playRow % 2 === 0 ? state.swing / 50 : 2 - state.swing / 50)
+          : 1;
+        const rowMs = speed * 2500 / bpm * swing;
+        const progress = Math.max(0, Math.min(1,
+          state.lastRowTime ? (now - state.lastRowTime) / rowMs : 0));
+        const playheadX = contentCenter(current) +
+          (contentCenter(next) - contentCenter(current)) * progress;
+        const maxScroll = Math.max(0, this.scroll.scrollWidth - this.scroll.clientWidth);
+        const desired = Math.max(0, Math.min(maxScroll, playheadX - this.scroll.clientWidth / 2));
+        const elapsed = Math.max(0, Math.min(50, now - this.followLastTime));
+        const blend = 1 - Math.exp(-elapsed / 70);
+        this.scroll.scrollLeft += (desired - this.scroll.scrollLeft) * blend;
+      }
+
+      this.followLastTime = now;
+      this.followFrame = requestAnimationFrame(nextNow => this.animatePlaybackFollow(nextNow));
     }
 
     updateInfo() {

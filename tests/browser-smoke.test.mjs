@@ -236,8 +236,10 @@ try {
     const tracker = window.tracker;
     const position = document.querySelector('.score-position[data-pos="1"].playing');
     const markers = document.querySelectorAll('.score-position[data-pos="1"] .score-hit.playing');
-    return position && markers.length === tracker.state.song.channels &&
-      [...markers].every(marker => Number(marker.dataset.row) === tracker.state.playRow);
+    if (!position || markers.length !== tracker.state.song.channels ||
+        ![...markers].every(marker => Number(marker.dataset.row) === tracker.state.playRow)) return false;
+    const xPositions = [...markers].map(marker => marker.getBoundingClientRect().left);
+    return Math.max(...xPositions) - Math.min(...xPositions) < 0.5;
   }, { timeout: 5000 });
   assert.ok(await page.evaluate(() => document.getElementById('scoreScroll').scrollLeft > 0),
     'score playback should scroll horizontally into the next order position');

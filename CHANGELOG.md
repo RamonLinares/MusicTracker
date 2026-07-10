@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed SCORE timing alignment by formatting every channel against one shared
+  rhythmic grid, keeping notes, edit targets, and playback markers vertically
+  synchronized across all staves.
 - Added a synchronized standard-notation SCORE view powered by VexFlow: one
   staff per channel, a seamless horizontal song timeline with visible pattern
   boundaries, normal tracker keyboard editing and navigation, instrument and

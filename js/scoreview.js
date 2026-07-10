@@ -213,9 +213,7 @@
       item.rendered = true;
       item.element.querySelector('.score-loading')?.remove();
       try {
-        for (let channel = 0; channel < this.song.channels; channel++) {
-          this.renderChannel(item, position, channel);
-        }
+        this.renderPosition(item, position);
       } catch (error) {
         console.error('Score rendering failed:', error);
         item.rendered = false;
@@ -228,112 +226,130 @@
       return item.element;
     }
 
-    renderChannel(item, position, channel) {
-      const row = document.createElement('div');
-      row.className = 'score-channel-row';
-      row.classList.toggle('muted', Boolean(this.state.muted[channel]));
-      row.dataset.ch = String(channel);
+    renderPosition(item, position) {
+      const mounts = [];
+      for (let channel = 0; channel < this.song.channels; channel++) {
+        const row = document.createElement('div');
+        row.className = 'score-channel-row';
+        row.classList.toggle('muted', Boolean(this.state.muted[channel]));
+        row.dataset.ch = String(channel);
 
-      const label = document.createElement('div');
-      label.className = 'score-channel-label';
-      const instrument = dominantInstrument(this.song, item.pattern, channel);
-      label.innerHTML = `<b>CH ${channel + 1}</b><span>${instrument}</span>`;
-      row.appendChild(label);
+        const label = document.createElement('div');
+        label.className = 'score-channel-label';
+        const instrument = dominantInstrument(this.song, item.pattern, channel);
+        label.innerHTML = `<b>CH ${channel + 1}</b><span>${instrument}</span>`;
+        row.appendChild(label);
 
-      const measures = document.createElement('div');
-      measures.className = 'score-measures';
-      row.appendChild(measures);
-      item.element.appendChild(row);
+        const measures = document.createElement('div');
+        measures.className = 'score-measures';
+        row.appendChild(measures);
+        item.element.appendChild(row);
+        mounts.push(measures);
+      }
 
-      let previousInstrument = -1;
+      const previousInstruments = new Array(this.song.channels).fill(-1);
       for (let measure = 0; measure < item.layout.measuresPerPattern; measure++) {
-        previousInstrument = this.renderMeasure({
-          mount: measures,
+        this.renderAlignedMeasure({
+          mounts,
           position,
           pattern: item.pattern,
-          channel,
           measure,
-          previousInstrument,
+          previousInstruments,
           layout: item.layout
         });
       }
     }
 
-    renderMeasure({ mount, position, pattern, channel, measure, previousInstrument, layout }) {
+    renderAlignedMeasure({ mounts, position, pattern, measure, previousInstruments, layout }) {
       const score = this.state.score;
       const startRow = measure * layout.rowsPerMeasure;
-      const wrapper = document.createElement('div');
-      wrapper.className = 'score-inline-measure';
-      wrapper.dataset.measure = String(measure);
-      mount.appendChild(wrapper);
+      const systems = mounts.map((mount, channel) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'score-inline-measure';
+        wrapper.dataset.measure = String(measure);
+        mount.appendChild(wrapper);
 
-      const renderer = new VF.Renderer(wrapper, VF.Renderer.Backends.SVG);
-      renderer.resize(MEASURE_WIDTH, STAFF_HEIGHT);
-      const context = renderer.getContext();
-      const stave = new VF.Stave(measure === 0 ? 7 : 0, 19, MEASURE_WIDTH - (measure === 0 ? 7 : 0));
-      if (measure === 0) {
-        stave.addClef(score.clef);
-        if (score.clef !== 'percussion') stave.addKeySignature(score.key);
-        stave.addTimeSignature(score.time);
-      }
-      stave.setContext(context).draw();
-
-      const notes = [];
-      for (let slot = 0; slot < layout.rowsPerMeasure; slot++) {
-        const trackerRow = startRow + slot;
-        const cell = trackerRow < ROWS
-          ? readCell(this.song, pattern, trackerRow, channel)
-          : emptyCell(trackerRow, channel);
-        const duration = DURATION_BY_GRID[score.grid] || '16';
-        const note = cell.note
-          ? new VF.StaveNote({ clef: score.clef, keys: [vexKey(cell.note, score.key, score.clef)], duration })
-          : new VF.StaveNote({ clef: score.clef, keys: [restKey(score.clef)], duration: `${duration}r` });
-
-        if (cell.note && cell.smp && cell.smp !== previousInstrument) {
-          note.addModifier(new VF.Annotation(`I${hex2(cell.smp)}`)
-            .setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM)
-            .setFont('Arial', 7)
-            .setStyle({ fillStyle: '#42566b', strokeStyle: '#42566b' }), 0);
-          previousInstrument = cell.smp;
+        const renderer = new VF.Renderer(wrapper, VF.Renderer.Backends.SVG);
+        renderer.resize(MEASURE_WIDTH, STAFF_HEIGHT);
+        const context = renderer.getContext();
+        const staveX = measure === 0 ? 7 : 0;
+        const stave = new VF.Stave(staveX, 19, MEASURE_WIDTH - staveX);
+        if (measure === 0) {
+          stave.addClef(score.clef);
+          if (score.clef !== 'percussion') stave.addKeySignature(score.key);
+          stave.addTimeSignature(score.time);
         }
-        if (cell.fx || cell.pm) {
-          note.addModifier(new VF.Annotation(`${cell.fx.toString(16).toUpperCase()}${hex2(cell.pm)}`)
-            .setVerticalJustification(VF.Annotation.VerticalJustify.TOP)
-            .setFont('Arial', 7, 'bold')
-            .setStyle({ fillStyle: '#a34712', strokeStyle: '#a34712' }), 0);
+        stave.setContext(context).draw();
+
+        const notes = [];
+        let previousInstrument = previousInstruments[channel];
+        for (let slot = 0; slot < layout.rowsPerMeasure; slot++) {
+          const trackerRow = startRow + slot;
+          const cell = trackerRow < ROWS
+            ? readCell(this.song, pattern, trackerRow, channel)
+            : emptyCell(trackerRow, channel);
+          const duration = DURATION_BY_GRID[score.grid] || '16';
+          const note = cell.note
+            ? new VF.StaveNote({ clef: score.clef, keys: [vexKey(cell.note, score.key, score.clef)], duration })
+            : new VF.StaveNote({ clef: score.clef, keys: [restKey(score.clef)], duration: `${duration}r` });
+
+          if (cell.note && cell.smp && cell.smp !== previousInstrument) {
+            note.addModifier(new VF.Annotation(`I${hex2(cell.smp)}`)
+              .setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM)
+              .setFont('Arial', 7)
+              .setStyle({ fillStyle: '#42566b', strokeStyle: '#42566b' }), 0);
+            previousInstrument = cell.smp;
+          }
+          if (cell.fx || cell.pm) {
+            note.addModifier(new VF.Annotation(`${cell.fx.toString(16).toUpperCase()}${hex2(cell.pm)}`)
+              .setVerticalJustification(VF.Annotation.VerticalJustify.TOP)
+              .setFont('Arial', 7, 'bold')
+              .setStyle({ fillStyle: '#a34712', strokeStyle: '#a34712' }), 0);
+          }
+          if (trackerRow >= ROWS) note.setStyle({ fillStyle: '#cbd1d8', strokeStyle: '#cbd1d8' });
+          notes.push(note);
         }
-        if (trackerRow >= ROWS) note.setStyle({ fillStyle: '#cbd1d8', strokeStyle: '#cbd1d8' });
-        notes.push(note);
-      }
+        previousInstruments[channel] = previousInstrument;
 
-      const voice = new VF.Voice({ numBeats: layout.beats, beatValue: layout.beatValue }).addTickables(notes);
-      if (score.clef !== 'percussion') VF.Accidental.applyAccidentals([voice], score.key);
-      new VF.Formatter().joinVoices([voice]).format([voice], stave.getNoteEndX() - stave.getNoteStartX() - 8);
-      voice.draw(context, stave);
-      VF.Beam.generateBeams(notes).forEach(beam => beam.setContext(context).draw());
-
-      const centers = notes.map(note => note.getAbsoluteX());
-      notes.forEach((note, slot) => {
-        const trackerRow = startRow + slot;
-        if (trackerRow >= ROWS) return;
-        const previous = slot ? centers[slot - 1] : stave.getNoteStartX();
-        const next = slot < centers.length - 1 ? centers[slot + 1] : stave.getNoteEndX();
-        const left = Math.max(stave.getNoteStartX(), (previous + centers[slot]) / 2);
-        const right = Math.min(stave.getNoteEndX(), (centers[slot] + next) / 2);
-        const hit = document.createElement('button');
-        hit.type = 'button';
-        hit.className = 'score-hit';
-        hit.dataset.pos = String(position);
-        hit.dataset.row = String(trackerRow);
-        hit.dataset.ch = String(channel);
-        hit.style.left = `${left}px`;
-        hit.style.width = `${Math.max(12, right - left)}px`;
-        hit.setAttribute('aria-label', `Position ${hex2(position)} row ${hex2(trackerRow)} channel ${channel + 1}`);
-        hit.title = describeCell(this.song, position, pattern, trackerRow, channel, 0, this.tracker.ui.describeEffect);
-        hit.addEventListener('click', () => this.selectCell(position, trackerRow, channel));
-        wrapper.appendChild(hit);
+        const voice = new VF.Voice({ numBeats: layout.beats, beatValue: layout.beatValue })
+          .addTickables(notes);
+        if (score.clef !== 'percussion') VF.Accidental.applyAccidentals([voice], score.key);
+        return { channel, wrapper, context, stave, notes, voice };
       });
-      return previousInstrument;
+
+      const voices = systems.map(system => system.voice);
+      const referenceStave = systems[0].stave;
+      new VF.Formatter().joinVoices(voices).format(
+        voices, referenceStave.getNoteEndX() - referenceStave.getNoteStartX() - 8);
+
+      for (const system of systems) {
+        system.voice.draw(system.context, system.stave);
+        VF.Beam.generateBeams(system.notes).forEach(beam => beam.setContext(system.context).draw());
+      }
+
+      const centers = systems[0].notes.map(note => note.getAbsoluteX());
+      for (const { channel, wrapper, stave } of systems) {
+        centers.forEach((center, slot) => {
+          const trackerRow = startRow + slot;
+          if (trackerRow >= ROWS) return;
+          const previous = slot ? centers[slot - 1] : stave.getNoteStartX();
+          const next = slot < centers.length - 1 ? centers[slot + 1] : stave.getNoteEndX();
+          const left = Math.max(stave.getNoteStartX(), (previous + center) / 2);
+          const right = Math.min(stave.getNoteEndX(), (center + next) / 2);
+          const hit = document.createElement('button');
+          hit.type = 'button';
+          hit.className = 'score-hit';
+          hit.dataset.pos = String(position);
+          hit.dataset.row = String(trackerRow);
+          hit.dataset.ch = String(channel);
+          hit.style.left = `${left}px`;
+          hit.style.width = `${Math.max(12, right - left)}px`;
+          hit.setAttribute('aria-label', `Position ${hex2(position)} row ${hex2(trackerRow)} channel ${channel + 1}`);
+          hit.title = describeCell(this.song, position, pattern, trackerRow, channel, 0, this.tracker.ui.describeEffect);
+          hit.addEventListener('click', () => this.selectCell(position, trackerRow, channel));
+          wrapper.appendChild(hit);
+        });
+      }
     }
 
     selectCell(position, row, channel) {

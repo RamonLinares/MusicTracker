@@ -164,6 +164,62 @@ try {
   await page.waitForFunction(() => !window.tracker.state.playing, { timeout: 5000 });
   await page.click('#tabPattern');
 
+  // Standard notation view engraves the tracker data and writes edits back.
+  await page.click('#tabScore');
+  await page.waitForFunction(() => window.WebTrackerScore?.active && document.querySelectorAll('.score-measure svg').length === 4,
+    { timeout: 10000 });
+  await page.click('.score-hit[data-row="0"]');
+  assert.match(await page.textContent('#scoreCellInfo'), /ROW 00\s+\|\s+CH 1\s+\|\s+C-2\s+\|\s+I03 KICK/);
+  const scoreAnnotations = await page.locator('.score-measure svg text').allTextContents();
+  assert.ok(scoreAnnotations.includes('I03'), 'score should annotate instrument changes');
+  assert.ok(scoreAnnotations.includes('C18'), 'score should annotate tracker effects');
+
+  await page.click('.score-hit[data-row="1"]');
+  await page.selectOption('#scoreNote', '15'); // D-2
+  await page.selectOption('#scoreInstrument', '1');
+  await page.selectOption('#scoreEffect', '4');
+  await page.fill('#scoreParam', '47');
+  await page.click('#scoreWrite');
+  assert.deepEqual(
+    await page.evaluate(() => Array.from(window.tracker.MOD.cellGet(window.tracker.state.song, 0, 1, 0))),
+    [15, 1, 4, 0x47],
+    'score Write should update the tracker cell'
+  );
+  assert.match(await page.textContent('#scoreCellInfo'), /D-2.*I01 CHIP LEAD.*447 VIBRATO/);
+  await page.keyboard.press('Control+z');
+  assert.deepEqual(
+    await page.evaluate(() => Array.from(window.tracker.MOD.cellGet(window.tracker.state.song, 0, 1, 0))),
+    [0, 0, 0, 0],
+    'undo should revert a score edit'
+  );
+
+  await page.selectOption('#scoreClef', 'treble');
+  await page.selectOption('#scoreKey', 'Bb');
+  await page.selectOption('#scoreTime', '3/4');
+  await page.waitForFunction(() => document.querySelectorAll('.score-measure svg').length === 6);
+  assert.ok(await page.locator('.score-fallback.hidden').count(), 'alternate score configuration should engrave cleanly');
+  const savedScore = await page.evaluate(() => JSON.parse(window.tracker.project.build()).score);
+  assert.deepEqual(savedScore, { key: 'Bb', time: '3/4', clef: 'treble', grid: 4, channel: 0 });
+  const parsedScore = await page.evaluate(() =>
+    window.tracker.project.parse(window.tracker.project.build()).score);
+  assert.deepEqual(parsedScore, savedScore, 'score metadata should round-trip through a .wtp project');
+
+  await page.selectOption('#scoreGrid', '1');
+  await page.selectOption('#scoreTime', '7/8');
+  await page.waitForFunction(() => window.tracker.state.score.grid === 2 &&
+    document.querySelectorAll('.score-measure svg').length === 10);
+  assert.equal(await page.inputValue('#scoreGrid'), '2', 'odd eighth meters should use at least an eighth-note row grid');
+
+  await page.click('#btnPlayPat');
+  await page.waitForFunction(() => window.tracker.state.playRow >= 3, { timeout: 5000 });
+  await page.waitForFunction(() => {
+    const marker = document.querySelector('.score-hit.playing');
+    return marker && Number(marker.dataset.row) === window.tracker.state.playRow;
+  }, { timeout: 5000 });
+  await page.click('#btnStop');
+  await page.waitForFunction(() => !window.tracker.state.playing, { timeout: 5000 });
+  await page.click('#tabPattern');
+
   // playback starts and rows advance
   await page.click('#btnPlayPat');
   await page.waitForFunction(() => window.tracker.state.playing, { timeout: 5000 });

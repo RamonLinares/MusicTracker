@@ -6,6 +6,7 @@
   const $ = id => document.getElementById(id);
 
   const player = new Player();
+  const SCORE_DEFAULT = { key: 'Am', time: '4/4', clef: 'bass', grid: 4, channel: 0 };
 
   const state = {
     song: MOD.demoSong(),
@@ -27,8 +28,9 @@
     jamHeld: {},               // code -> channel, for keyup of looped jam notes
     sel: null,                 // normalized {r0,c0,r1,c1} or null
     selAnchor: null,           // {row,ch} where shift-selection started
-    view: 'pattern',           // 'pattern' | 'drums' | 'three'
+    view: 'pattern',           // 'pattern' | 'drums' | 'score' | 'three'
     drumLanes: null,           // per-channel {smp, note} for the drum grid
+    score: { ...SCORE_DEFAULT }, // standard notation view metadata
     assist: { root: 9, scale: 'minor', lock: false, highlight: true,
               open: false, seed: 1, mask: null }, // music assistant
     clipboard: null,           // {rows, chs, cells:Uint8Array}
@@ -207,6 +209,7 @@
       swing: state.swing,
       assist: { root: state.assist.root, scale: state.assist.scale,
                 lock: state.assist.lock, highlight: state.assist.highlight },
+      score: { ...state.score },
       muted: state.muted.slice(),
       bpm: parseInt($('bpmInput').value, 10) || 125,
       speed: parseInt($('speedInput').value, 10) || 6
@@ -258,6 +261,9 @@
         state.assist.lock = !!draft.assist.lock;
         state.assist.highlight = draft.assist.highlight !== false;
         assistSyncUi();
+      }
+      if (draft.score) {
+        state.score = normalizeScoreMeta(draft.score, song.channels);
       }
       state.muted = Array.isArray(draft.muted)
         ? draft.muted.slice(0, song.channels).map(Boolean)
@@ -328,6 +334,7 @@
       paula: state.paula,
       swing: state.swing,
       assist: { root: state.assist.root, scale: state.assist.scale, lock: state.assist.lock },
+      score: { ...state.score },
       song
     });
   }
@@ -357,7 +364,8 @@
       song,
       paula: typeof proj.paula === 'boolean' ? proj.paula : null,
       swing: proj.swing ? clampNum(proj.swing, 50, 75, 50) : null,
-      assist: proj.assist || null
+      assist: proj.assist || null,
+      score: proj.score || null
     };
   }
 
@@ -458,6 +466,7 @@
       scaleMask: state.assist.highlight ? state.assist.mask : null
     });
     if (state.view === 'drums') drawDrums();
+    if (state.view === 'score') window.WebTrackerScore?.refresh();
   }
 
   function renderChannelHeaders() {
@@ -730,6 +739,7 @@
     renderStatus();
     $('songTitle').value = state.song.title;
     drawPattern();
+    if (state.view === 'score') window.WebTrackerScore?.refresh();
   }
 
   // ---- scopes ---------------------------------------------------------------
@@ -1272,12 +1282,15 @@
     state.view = v;
     $('tabPattern').classList.toggle('active', v === 'pattern');
     $('tabDrums').classList.toggle('active', v === 'drums');
+    $('tabScore').classList.toggle('active', v === 'score');
     $('tab3d').classList.toggle('active', v === 'three');
     document.querySelector('.pattern-wrap').classList.toggle('hidden', v !== 'pattern');
     $('chanHeaders').classList.toggle('hidden', v !== 'pattern');
     $('drumPanel').classList.toggle('hidden', v !== 'drums');
+    $('scorePanel').classList.toggle('hidden', v !== 'score');
     $('threePanel').classList.toggle('hidden', v !== 'three');
     window.WebTracker3D?.setActive(v === 'three');
+    window.WebTrackerScore?.setActive(v === 'score');
     if (v === 'drums') {
       renderDrumLanes();
       drawDrums();
@@ -1288,7 +1301,77 @@
 
   $('tabPattern').onclick = () => setView('pattern');
   $('tabDrums').onclick = () => setView('drums');
+  $('tabScore').onclick = () => setView('score');
   $('tab3d').onclick = () => setView('three');
+
+  const SCORE_KEYS = new Set([
+    'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb',
+    'Am', 'Em', 'Bm', 'F#m', 'C#m', 'G#m', 'D#m', 'A#m', 'Dm', 'Gm', 'Cm', 'Fm', 'Bbm', 'Ebm', 'Abm'
+  ]);
+  const SCORE_TIMES = new Set(['4/4', '3/4', '2/4', '6/8', '5/4', '7/8']);
+  const SCORE_CLEFS = new Set(['treble', 'bass', 'alto', 'percussion']);
+  const SCORE_ROOTS = { C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4,
+    F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11, Cb: 11 };
+
+  function normalizeScoreMeta(meta, channels = state.song.channels) {
+    const key = SCORE_KEYS.has(meta && meta.key) ? meta.key : SCORE_DEFAULT.key;
+    const time = SCORE_TIMES.has(meta && meta.time) ? meta.time : SCORE_DEFAULT.time;
+    const clef = SCORE_CLEFS.has(meta && meta.clef) ? meta.clef : SCORE_DEFAULT.clef;
+    let grid = [1, 2, 4, 8].includes(Number(meta && meta.grid)) ? Number(meta.grid) : SCORE_DEFAULT.grid;
+    const [beats, denominator] = time.split('/').map(Number);
+    if (denominator === 8 && beats % 2 && grid === 1) grid = 2;
+    const channel = clampNum(meta && meta.channel, 0, channels - 1, 0) | 0;
+    return { key, time, clef, grid, channel };
+  }
+
+  function syncAssistToScoreKey(key) {
+    const minor = key.endsWith('m');
+    const tonic = minor ? key.slice(0, -1) : key;
+    state.assist.root = SCORE_ROOTS[tonic] ?? state.assist.root;
+    state.assist.scale = minor ? 'minor' : 'major';
+    assistUpdateMask();
+    if (state.assist.open) assistSyncUi();
+  }
+
+  function updateScoreMeta(meta) {
+    const next = normalizeScoreMeta({ ...state.score, ...meta });
+    const keyChanged = next.key !== state.score.key;
+    state.score = next;
+    if (keyChanged) syncAssistToScoreKey(next.key);
+    scheduleAutosave();
+    window.WebTrackerScore?.refresh(true);
+    return { ...state.score };
+  }
+
+  function detectScoreKey() {
+    const detected = Assist.detectKey(state.song);
+    if (!detected) return null;
+    const major = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+    const minor = ['Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'];
+    const key = detected.scale === 'minor' || detected.scale === 'harmMinor'
+      ? minor[detected.root] : major[detected.root];
+    updateScoreMeta({ key });
+    return { key, confidence: detected.confidence };
+  }
+
+  function editScoreCell(row, ch, cell) {
+    const pattern = curPattern();
+    const safeRow = clampNum(row, 0, 63, state.cursor.row) | 0;
+    const safeChannel = clampNum(ch, 0, state.song.channels - 1, state.cursor.ch) | 0;
+    pushUndo('pattern', pattern);
+    MOD.cellSet(state.song, pattern, safeRow, safeChannel,
+      clampNum(cell.note, 0, 36, 0) | 0,
+      clampNum(cell.smp, 0, 31, 0) | 0,
+      clampNum(cell.fx, 0, 15, 0) | 0,
+      clampNum(cell.pm, 0, 255, 0) | 0);
+    state.cursor = { row: safeRow, ch: safeChannel, col: 0 };
+    clearSel();
+    player.sendPattern(state.song, pattern);
+    scheduleAutosave();
+    renderStatus();
+    drawPattern();
+    window.WebTracker3D?.refresh();
+  }
 
   // ---- music assistant ----------------------------------------------------------
 
@@ -1761,6 +1844,7 @@
   $('midiBtn').onclick = () => toggleMidi();
 
   function onKeyDown(e) {
+    if (e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     if (e.target.tagName === 'INPUT' &&
         (e.target.type === 'text' || e.target.type === 'number')) return;
 
@@ -2131,6 +2215,7 @@
     state.muted = new Array(song.channels).fill(false);
     state.wave.a = state.wave.b = -1;
     state.drumLanes = null;
+    state.score = normalizeScoreMeta({ ...state.score, channel: 0 }, song.channels);
     clearHistory();
     if (song.initBPM) $('bpmInput').value = song.initBPM;
     if (song.initSpeed) $('speedInput').value = song.initSpeed;
@@ -2167,7 +2252,7 @@
       let i = 0;
       while (i < head.length && (head[i] === 32 || head[i] === 9 || head[i] === 10 || head[i] === 13)) i++;
       if (head[i] === 0x7B) { // '{' — a WebTracker .wtp project
-        const { song, paula, swing, assist } = parseProjectJson(new TextDecoder().decode(buf));
+        const { song, paula, swing, assist, score } = parseProjectJson(new TextDecoder().decode(buf));
         adoptSong(song, `Loaded project "${song.title || file.name}" — ${song.channels}ch, ` +
           `${song.patterns.length} patterns`);
         if (paula !== null && paula !== state.paula) {
@@ -2186,6 +2271,8 @@
           state.assist.lock = !!assist.lock;
           assistSyncUi();
         }
+        if (score) state.score = normalizeScoreMeta(score, song.channels);
+        window.WebTrackerScore?.refresh(true);
         return;
       }
       const { song, kind } = parseModuleBuffer(buf);
@@ -2909,6 +2996,7 @@
     renderAll();
     drawScopes(null);
     if (state.view === 'drums') drawDrums();
+    if (state.view === 'score') window.WebTrackerScore?.refresh(true);
     if (state.view === 'three') window.WebTracker3D?.refresh();
   }
 
@@ -2940,8 +3028,13 @@
         renderAll();
         drawScopes(null);
         if (state.view === 'drums') drawDrums();
+        if (state.view === 'score') window.WebTrackerScore?.refresh(true);
         window.WebTracker3D?.refresh();
       },
+      updateScoreMeta,
+      detectScoreKey,
+      editScoreCell,
+      describeEffect: describeFx,
       setCursor: (row, ch) => {
         state.cursor.row = clampNum(row, 0, 63, state.cursor.row) | 0;
         state.cursor.ch = clampNum(ch, 0, state.song.channels - 1, state.cursor.ch) | 0;
@@ -2949,6 +3042,7 @@
         clearSel();
         renderStatus();
         drawPattern();
+        window.WebTrackerScore?.refresh();
         window.WebTracker3D?.refresh();
       }
     } };

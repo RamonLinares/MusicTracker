@@ -105,6 +105,12 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   rhythm fills** (hits + rotation, Elektron style). It is just another lens
   on the same pattern data, so undo, playback, and all file formats keep
   working.
+- **Standard notation editor** — the SCORE tab engraves any tracker channel on
+  a classic five-line staff with selectable clef, major/minor key signature,
+  meter, and row resolution. Instrument changes and MOD effect commands are
+  annotated on the score; selecting a rhythmic position exposes editable note,
+  instrument, effect, and parameter fields that write back to the same pattern
+  with undo support. Score metadata persists in autosave and `.wtp` projects.
 - **3D Spatial Score** — the 3D CORE tab maps the current pattern into a
   readable Three.js score: X is channel, Y is pitch, Z is row/time, instrument
   sets color, and note width reflects volume. Beat and bar markers, effect
@@ -185,6 +191,7 @@ Press **F1** in the app for the full reference.
 - `js/worklet.js` — replayer + mixer (audio thread)
 - `js/player.js` — main-thread AudioWorklet wrapper
 - `js/patternview.js` — canvas pattern editor
+- `js/scoreview.js`, `js/vendor/vexflow.min.js` — standard notation editor
 - `js/visual3d.js`, `js/vendor/three.*.min.js` — 3D Core interface
 - `js/app.js` — UI glue, keyboard, selection/undo, sample & order editors, file I/O
 - `js/pwa.js`, `service-worker.js`, `manifest.webmanifest` — install/offline shell
@@ -218,3 +225,5 @@ guidance.
 ## License
 
 WebTracker is released under the [MIT License](LICENSE).
+Bundled Three.js and VexFlow runtimes retain their MIT notices in
+`js/vendor/THREE-LICENSE` and `js/vendor/VEXFLOW-LICENSE`.

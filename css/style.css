@@ -467,6 +467,145 @@ button.rec { background: #d04038; color: #fff; border-color: #ff8078 #701812 #70
 
 .hidden { display: none !important; }
 
+/* ---- standard notation score ---- */
+
+.score-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: #e9edf2;
+  color: #11151b;
+}
+
+.score-toolbar {
+  flex: 0 0 auto;
+  background: var(--panel);
+  border-bottom: 1px solid var(--bevel-lo);
+}
+
+.score-control-group {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+  padding: 6px 10px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.score-control-group + .score-control-group { border-top: 1px solid var(--bevel-lo); }
+.score-control-group button { flex: 0 0 auto; }
+#scoreDetectKey { width: 62px; }
+
+.score-control-group label {
+  display: grid;
+  gap: 2px;
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-size: 9px;
+}
+
+.score-control-group select,
+.score-control-group input {
+  height: 24px;
+  min-width: 76px;
+  font: 11px "SF Mono", Menlo, Consolas, monospace;
+  color: var(--text-bright);
+  background: var(--surface);
+  border: 1px solid var(--bevel-lo);
+  padding: 2px 5px;
+}
+
+#scoreChannel { min-width: 128px; }
+#scoreKey, #scoreTime, #scoreGrid { min-width: 82px; }
+#scoreNote { min-width: 82px; }
+#scoreInstrument { min-width: 150px; }
+#scoreEffect { min-width: 140px; }
+#scoreParam { min-width: 48px; width: 48px; text-transform: uppercase; }
+
+.score-row-label {
+  align-self: center;
+  flex: 0 0 auto;
+  color: var(--text-dim);
+}
+
+.score-row-label b { color: var(--accent); }
+
+.score-cell-info {
+  flex: 0 0 auto;
+  min-height: 25px;
+  padding: 6px 12px;
+  color: #d7e5f5;
+  background: #111923;
+  border-bottom: 2px solid var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #cbd3dc;
+}
+
+.score-sheet {
+  width: 920px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 18px 0 34px;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px #aeb8c4;
+}
+
+.score-measure {
+  position: relative;
+  width: 920px;
+  height: 180px;
+  border-bottom: 1px solid #d9dee5;
+}
+
+.score-measure:last-child { border-bottom: 0; }
+
+.score-measure-label {
+  position: absolute;
+  left: 42px;
+  top: 7px;
+  z-index: 2;
+  color: #68717d;
+  font: 10px "SF Mono", Menlo, Consolas, monospace;
+  pointer-events: none;
+}
+
+.score-measure svg { display: block; }
+
+.score-hit {
+  position: absolute;
+  z-index: 3;
+  top: 28px;
+  height: 126px;
+  min-width: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.score-hit:hover { background: rgba(0, 112, 190, 0.08); }
+.score-hit.selected { background: rgba(255, 160, 48, 0.16); outline: 2px solid #e07810; }
+.score-hit.playing { background: rgba(0, 150, 210, 0.16); outline: 2px solid #008dc2; }
+
+.score-fallback {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: #9c1c1c;
+  background: #fff;
+}
+
 /* ---- 3D core view ---- */
 
 .three-panel {
@@ -816,4 +955,8 @@ header select {
   .three-axis-key { left: 8px; right: 8px; bottom: 34px; font-size: 8px; }
   .three-legend { left: 8px; right: 8px; bottom: 8px; gap: 9px; padding: 3px 6px; }
   .three-legend span:nth-child(n+4) { display: none; }
+
+  .score-control-group { padding: 5px 8px; }
+  .score-sheet { margin: 0; }
+  .score-cell-info { padding: 5px 8px; }
 }

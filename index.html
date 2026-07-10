@@ -153,6 +153,7 @@
     <div id="viewTabs">
       <button id="tabPattern" class="vtab active">PATTERN</button>
       <button id="tabDrums" class="vtab" title="Drum machine view: step grid + Euclidean fills over the same pattern">DRUMS</button>
+      <button id="tabScore" class="vtab" title="Standard notation editor">SCORE</button>
       <button id="tab3d" class="vtab" title="3D tracker interface">3D CORE</button>
     </div>
     <div id="chanHeaders"></div>
@@ -163,6 +164,50 @@
       <div id="drumPanel" class="drum-panel hidden">
         <div id="drumLanes"></div>
         <div class="drum-scroll"><canvas id="drumGrid" title="Click: toggle hit · drag: paint · Shift+click: cycle velocity"></canvas></div>
+      </div>
+
+      <div id="scorePanel" class="score-panel hidden">
+        <div class="score-toolbar">
+          <div class="score-control-group">
+            <label>Channel<select id="scoreChannel"></select></label>
+            <label>Clef<select id="scoreClef">
+              <option value="treble">Treble</option>
+              <option value="bass">Bass</option>
+              <option value="alto">Alto</option>
+              <option value="percussion">Percussion</option>
+            </select></label>
+            <label>Key<select id="scoreKey"></select></label>
+            <button id="scoreDetectKey" class="mini" type="button" title="Detect a major or minor key from the song">Detect</button>
+            <label>Meter<select id="scoreTime">
+              <option value="4/4">4/4</option>
+              <option value="3/4">3/4</option>
+              <option value="2/4">2/4</option>
+              <option value="6/8">6/8</option>
+              <option value="5/4">5/4</option>
+              <option value="7/8">7/8</option>
+            </select></label>
+            <label>Grid<select id="scoreGrid">
+              <option value="1">Quarter</option>
+              <option value="2">Eighth</option>
+              <option value="4">Sixteenth</option>
+              <option value="8">32nd</option>
+            </select></label>
+          </div>
+          <div class="score-control-group score-cell-editor">
+            <span class="score-row-label">Row <b id="scoreRow">00</b></span>
+            <label>Note<select id="scoreNote"></select></label>
+            <label>Instrument<select id="scoreInstrument"></select></label>
+            <label>Effect<select id="scoreEffect"></select></label>
+            <label>Param<input id="scoreParam" type="text" value="00" maxlength="2" inputmode="text" spellcheck="false"></label>
+            <button id="scoreWrite" type="button">Write</button>
+            <button id="scoreClear" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="scoreCellInfo" class="score-cell-info">ROW 00 · EMPTY</div>
+        <div id="scoreScroll" class="score-scroll">
+          <div id="scoreSheet" class="score-sheet"></div>
+        </div>
+        <div id="scoreFallback" class="score-fallback hidden">Notation engine unavailable</div>
       </div>
 
       <div id="threePanel" class="three-panel hidden">
@@ -425,6 +470,7 @@
 <script src="js/patternview.js"></script>
 <script src="js/pwa.js"></script>
 <script src="js/app.js"></script>
+<script src="js/scoreview.js"></script>
 <script type="module" src="js/visual3d.js"></script>
 </body>
 </html>

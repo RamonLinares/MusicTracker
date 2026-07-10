@@ -37,3 +37,6 @@ jobs:
           curl -fsS http://127.0.0.1:8642/ >/dev/null
           curl -fsS http://127.0.0.1:8642/service-worker.js >/dev/null
           curl -fsS http://127.0.0.1:8642/manifest.webmanifest >/dev/null
+          curl -fsS http://127.0.0.1:8642/js/visual3d.js >/dev/null
+          curl -fsS http://127.0.0.1:8642/js/vendor/three.core.min.js >/dev/null
+          curl -fsS http://127.0.0.1:8642/js/vendor/three.module.min.js >/dev/null

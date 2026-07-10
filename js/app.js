@@ -27,7 +27,7 @@
     jamHeld: {},               // code -> channel, for keyup of looped jam notes
     sel: null,                 // normalized {r0,c0,r1,c1} or null
     selAnchor: null,           // {row,ch} where shift-selection started
-    view: 'pattern',           // 'pattern' | 'drums'
+    view: 'pattern',           // 'pattern' | 'drums' | 'three'
     drumLanes: null,           // per-channel {smp, note} for the drum grid
     assist: { root: 9, scale: 'minor', lock: false, highlight: true,
               open: false, seed: 1, mask: null }, // music assistant
@@ -1272,17 +1272,23 @@
     state.view = v;
     $('tabPattern').classList.toggle('active', v === 'pattern');
     $('tabDrums').classList.toggle('active', v === 'drums');
+    $('tab3d').classList.toggle('active', v === 'three');
     document.querySelector('.pattern-wrap').classList.toggle('hidden', v !== 'pattern');
     $('chanHeaders').classList.toggle('hidden', v !== 'pattern');
     $('drumPanel').classList.toggle('hidden', v !== 'drums');
+    $('threePanel').classList.toggle('hidden', v !== 'three');
+    window.WebTracker3D?.setActive(v === 'three');
     if (v === 'drums') {
       renderDrumLanes();
       drawDrums();
+    } else if (v === 'three') {
+      window.WebTracker3D?.refresh();
     }
   }
 
   $('tabPattern').onclick = () => setView('pattern');
   $('tabDrums').onclick = () => setView('drums');
+  $('tab3d').onclick = () => setView('three');
 
   // ---- music assistant ----------------------------------------------------------
 
@@ -2872,7 +2878,12 @@
 
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
-  window.addEventListener('resize', () => { drawPattern(); drawScopes(null); drawWave(); });
+  window.addEventListener('resize', () => {
+    drawPattern();
+    drawScopes(null);
+    drawWave();
+    window.WebTracker3D?.resize();
+  });
 
   // audio needs a user gesture — init lazily on first interaction
   const initAudio = () => {
@@ -2898,6 +2909,7 @@
     renderAll();
     drawScopes(null);
     if (state.view === 'drums') drawDrums();
+    if (state.view === 'three') window.WebTracker3D?.refresh();
   }
 
   (function initThemeUi() {
@@ -2921,5 +2933,23 @@
     project: { build: buildProjectJson, parse: parseProjectJson },
     midi: { state: midi, message: onMidiMessage, toggle: toggleMidi },
     hum: { process: processHum },
-    applyTheme };
+    applyTheme,
+    ui: {
+      setView,
+      refresh: () => {
+        renderAll();
+        drawScopes(null);
+        if (state.view === 'drums') drawDrums();
+        window.WebTracker3D?.refresh();
+      },
+      setCursor: (row, ch) => {
+        state.cursor.row = clampNum(row, 0, 63, state.cursor.row) | 0;
+        state.cursor.ch = clampNum(ch, 0, state.song.channels - 1, state.cursor.ch) | 0;
+        state.cursor.col = 0;
+        clearSel();
+        renderStatus();
+        drawPattern();
+        window.WebTracker3D?.refresh();
+      }
+    } };
 })();

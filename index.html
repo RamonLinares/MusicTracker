@@ -153,6 +153,7 @@
     <div id="viewTabs">
       <button id="tabPattern" class="vtab active">PATTERN</button>
       <button id="tabDrums" class="vtab" title="Drum machine view: step grid + Euclidean fills over the same pattern">DRUMS</button>
+      <button id="tab3d" class="vtab" title="3D tracker interface">3D CORE</button>
     </div>
     <div id="chanHeaders"></div>
     <div class="edit-area">
@@ -162,6 +163,16 @@
       <div id="drumPanel" class="drum-panel hidden">
         <div id="drumLanes"></div>
         <div class="drum-scroll"><canvas id="drumGrid" title="Click: toggle hit · drag: paint · Shift+click: cycle velocity"></canvas></div>
+      </div>
+
+      <div id="threePanel" class="three-panel hidden">
+        <div id="threeMount" class="three-mount"></div>
+        <div class="three-hud">
+          <span class="three-title">3D CORE</span>
+          <span id="threeReadout">PAT 00 · ROW 00 · CH 1</span>
+          <span id="threeDensity">00 NOTES</span>
+        </div>
+        <div id="threeFallback" class="three-fallback hidden">WebGL unavailable</div>
       </div>
 
       <div id="assistPanel" class="assist-panel hidden">
@@ -405,5 +416,6 @@
 <script src="js/patternview.js"></script>
 <script src="js/pwa.js"></script>
 <script src="js/app.js"></script>
+<script type="module" src="js/visual3d.js"></script>
 </body>
 </html>

@@ -105,6 +105,9 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   rhythm fills** (hits + rotation, Elektron style). It is just another lens
   on the same pattern data, so undo, playback, and all file formats keep
   working.
+- **3D Core view** — the 3D CORE tab turns the current pattern into an
+  animated Three.js scene: channel towers, note geometry, a moving playhead,
+  waveform ribbon, sample helix, and click-to-select tracker cells.
 - **Swing** — the SWG control (50–75%) adds MPC-style shuffle at the engine
   level: even rows stretch, odd rows shrink, pairs keep their combined
   length. Saved in `.wtp` projects and applied to WAV exports.
@@ -151,8 +154,8 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   so the app shell can be installed and opened offline after a first visit.
 - **Autosave** — current work is saved to browser storage and restored when the
   app is reopened.
-- **Drag-and-drop loading** — drop a `.mod`, `.med`, or `.mmd` file onto the
-  page to load it.
+- **Drag-and-drop loading** — drop a `.mod`, `.med`, `.mmd`, `.xm`, or `.wtp`
+  file onto the page to load it.
 
 ## Keys
 
@@ -180,6 +183,7 @@ Press **F1** in the app for the full reference.
 - `js/worklet.js` — replayer + mixer (audio thread)
 - `js/player.js` — main-thread AudioWorklet wrapper
 - `js/patternview.js` — canvas pattern editor
+- `js/visual3d.js`, `js/vendor/three.*.min.js` — 3D Core interface
 - `js/app.js` — UI glue, keyboard, selection/undo, sample & order editors, file I/O
 - `js/pwa.js`, `service-worker.js`, `manifest.webmanifest` — install/offline shell
 - `tests/mod-roundtrip.test.js` — synthetic MOD parser/writer smoke tests

@@ -57,6 +57,42 @@ try {
   assert.equal(await page.evaluate(() => window.tracker.state.song.title), 'web chiptune');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.smp-row').length), 31);
 
+  // 3D interface boots and renders a nonblank WebGL frame
+  await page.click('#tab3d');
+  await page.waitForFunction(() => window.WebTracker3D?.ready && document.querySelector('#threePanel canvas'), { timeout: 10000 });
+  await page.waitForTimeout(600);
+  const frame3dA = await page.evaluate(() => {
+    const canvas = document.querySelector('#threePanel canvas');
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    const w = gl.drawingBufferWidth;
+    const h = gl.drawingBufferHeight;
+    const size = 48;
+    const pixels = new Uint8Array(size * size * 4);
+    gl.readPixels(Math.max(0, (w - size) >> 1), Math.max(0, (h - size) >> 1), size, size, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    let lit = 0, sum = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const v = pixels[i] + pixels[i + 1] + pixels[i + 2];
+      if (v > 18) lit++;
+      sum = (sum + v * (i + 1)) >>> 0;
+    }
+    return { w, h, lit, sum };
+  });
+  assert.ok(frame3dA.w > 300 && frame3dA.h > 200, '3D canvas should fill the editor area');
+  assert.ok(frame3dA.lit > 120, '3D canvas should render nonblack pixels');
+  await page.waitForTimeout(500);
+  const frame3dB = await page.evaluate(() => {
+    const canvas = document.querySelector('#threePanel canvas');
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    const size = 48;
+    const pixels = new Uint8Array(size * size * 4);
+    gl.readPixels(Math.max(0, (gl.drawingBufferWidth - size) >> 1), Math.max(0, (gl.drawingBufferHeight - size) >> 1), size, size, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    let sum = 0;
+    for (let i = 0; i < pixels.length; i += 4) sum = (sum + (pixels[i] + pixels[i + 1] + pixels[i + 2]) * (i + 1)) >>> 0;
+    return sum;
+  });
+  assert.notEqual(frame3dA.sum, frame3dB, '3D scene should animate between frames');
+  await page.click('#tabPattern');
+
   // playback starts and rows advance
   await page.click('#btnPlayPat');
   await page.waitForFunction(() => window.tracker.state.playing, { timeout: 5000 });

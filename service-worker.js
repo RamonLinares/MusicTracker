@@ -1,7 +1,7 @@
 /* WebTracker app shell cache for offline use. */
 'use strict';
 
-const CACHE_NAME = 'webtracker-v14';
+const CACHE_NAME = 'webtracker-v15';
 const APP_SHELL = [
   './',
   './index.html',
@@ -17,7 +17,11 @@ const APP_SHELL = [
   './js/patternview.js',
   './js/player.js',
   './js/pwa.js',
+  './js/visual3d.js',
   './js/worklet.js',
+  './js/vendor/three.core.min.js',
+  './js/vendor/three.module.min.js',
+  './js/vendor/THREE-LICENSE',
   './manifest.webmanifest',
   './favicon.ico',
   './assets/icons/icon-192.png',

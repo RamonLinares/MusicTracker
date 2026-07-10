@@ -417,8 +417,11 @@ button.rec { background: #d04038; color: #fff; border-color: #ff8078 #701812 #70
   gap: 2px;
   padding: 4px 12px 0;
   background: var(--panel2);
+  position: relative;
+  z-index: 1;
 }
 .vtab {
+  flex: 0 0 auto;
   font-size: 10px;
   letter-spacing: 2px;
   padding: 4px 14px;
@@ -463,6 +466,76 @@ button.rec { background: #d04038; color: #fff; border-color: #ff8078 #701812 #70
 #drumGrid { display: block; cursor: pointer; }
 
 .hidden { display: none !important; }
+
+/* ---- 3D core view ---- */
+
+.three-panel {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.three-mount,
+.three-mount canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.three-panel canvas { cursor: crosshair; }
+
+.three-hud {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  color: var(--text);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
+  mix-blend-mode: screen;
+}
+
+.three-hud span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(5, 8, 14, 0.42);
+  border: 1px solid rgba(111, 195, 224, 0.22);
+  padding: 4px 8px;
+}
+
+.three-title {
+  flex: 0 0 auto;
+  color: var(--accent);
+  letter-spacing: 2px;
+  font-weight: bold;
+}
+
+#threeReadout {
+  flex: 1 1 auto;
+  color: var(--text-bright);
+}
+#threeDensity {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--cyan);
+}
+
+.three-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--surface);
+}
 
 
 /* ---- theme picker ---- */
@@ -589,3 +662,78 @@ header select {
 .edit-area { flex: 1; display: flex; min-height: 0; }
 .edit-area .pattern-wrap { flex: 1; }
 .edit-area .drum-panel { flex: 1; }
+.edit-area .three-panel { flex: 1; }
+
+@media (max-width: 700px) {
+  header {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    gap: 8px;
+    padding: 6px 8px;
+    overflow-x: auto;
+  }
+
+  .orderbar {
+    flex-shrink: 0;
+    gap: 4px;
+    padding: 5px 8px;
+  }
+
+  main { flex-direction: column; }
+
+  aside {
+    width: 100%;
+    height: 178px;
+    border-right: 0;
+    border-bottom: 2px solid var(--bevel-lo);
+  }
+
+  aside h2 { padding: 5px 8px 4px; }
+
+  #sampleList {
+    min-height: 48px;
+    max-height: 70px;
+  }
+
+  .smp-props {
+    max-height: 104px;
+    overflow-y: auto;
+    padding: 6px 8px;
+    gap: 5px;
+  }
+
+  #waveform { height: 40px; }
+
+  .wave-tools {
+    overflow-x: auto;
+    gap: 3px;
+  }
+
+  .wave-tools button { flex: 0 0 auto; }
+
+  #scopes { padding: 6px 0 6px 8px; }
+
+  #viewTabs {
+    overflow-x: auto;
+    padding: 4px 8px 0;
+  }
+
+  .vtab {
+    letter-spacing: 1px;
+    padding: 4px 10px;
+  }
+
+  #chanHeaders { padding-left: 8px; }
+  .pattern-wrap { padding-left: 8px; }
+
+  .three-hud {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    gap: 6px;
+    font-size: 10px;
+  }
+
+  .three-hud span { padding: 3px 6px; }
+  #threeDensity { display: none; }
+}

@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-- Added the 3D CORE view: a full-bleed Three.js interface over the current
-  pattern with channel towers, animated note geometry, a moving playhead,
-  waveform ribbon, sample helix, and click-to-select tracker cells.
+- Redesigned 3D CORE as a semantic spatial score: channels, pitch and rows now
+  own consistent X/Y/Z axes; instrument and volume drive note appearance;
+  beat/bar guides, effect events, row activity, camera modes, live cell detail,
+  and the playback plane make the pattern readable as well as visual.
 - Added hum-to-pattern (ASSIST → 🎤 Hum): one bar of count-in clicks, then
   hum or whistle for four bars — a YIN pitch tracker segments the recording
   into notes, quantizes them to rows, optionally snaps them to the current

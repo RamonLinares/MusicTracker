@@ -105,9 +105,11 @@ pattern, **Shift+Space** to play the song, and **F1** for the keyboard reference
   rhythm fills** (hits + rotation, Elektron style). It is just another lens
   on the same pattern data, so undo, playback, and all file formats keep
   working.
-- **3D Core view** — the 3D CORE tab turns the current pattern into an
-  animated Three.js scene: channel towers, note geometry, a moving playhead,
-  waveform ribbon, sample helix, and click-to-select tracker cells.
+- **3D Spatial Score** — the 3D CORE tab maps the current pattern into a
+  readable Three.js score: X is channel, Y is pitch, Z is row/time, instrument
+  sets color, and note width reflects volume. Beat and bar markers, effect
+  events, per-row activity, Overview/Follow cameras, a moving playback plane,
+  and click-to-select notes all stay synchronized with the tracker.
 - **Swing** — the SWG control (50–75%) adds MPC-style shuffle at the engine
   level: even rows stretch, odd rows shrink, pairs keep their combined
   length. Saved in `.wtp` projects and applied to WAV exports.

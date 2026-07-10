@@ -168,10 +168,19 @@
       <div id="threePanel" class="three-panel hidden">
         <div id="threeMount" class="three-mount"></div>
         <div class="three-hud">
-          <span class="three-title">3D CORE</span>
-          <span id="threeReadout">PAT 00 · ROW 00 · CH 1</span>
-          <span id="threeDensity">00 NOTES</span>
+          <div class="three-hud-main">
+            <span class="three-title">SPATIAL SCORE</span>
+            <span id="threeReadout">PAT 00 ROW 00 CH 1</span>
+            <span id="threeDensity">0 NOTES 0 FX</span>
+          </div>
+          <div id="threeDetail" class="three-detail">ROW 00 CH 1 EMPTY</div>
         </div>
+        <div class="three-view-controls" role="group" aria-label="3D camera mode">
+          <button id="threeOverview" class="active" type="button" aria-pressed="true">OVERVIEW</button>
+          <button id="threeFollow" type="button" aria-pressed="false">FOLLOW</button>
+        </div>
+        <div class="three-axis-key"><b>X</b> CHANNEL <b>Y</b> PITCH <b>Z</b> ROW <b>COLOR</b> INSTRUMENT <b>WIDTH</b> VOLUME</div>
+        <div id="threeLegend" class="three-legend" aria-label="Instrument colors"></div>
         <div id="threeFallback" class="three-fallback hidden">WebGL unavailable</div>
       </div>
 

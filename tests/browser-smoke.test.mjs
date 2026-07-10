@@ -79,6 +79,66 @@ try {
   });
   assert.ok(frame3dA.w > 300 && frame3dA.h > 200, '3D canvas should fill the editor area');
   assert.ok(frame3dA.lit > 120, '3D canvas should render nonblack pixels');
+  assert.match(await page.textContent('.three-axis-key'), /X CHANNEL Y PITCH Z ROW COLOR INSTRUMENT WIDTH VOLUME/);
+  assert.match(await page.textContent('#threeDetail'), /ROW 00\s+CH 1\s+C-2\s+03 KICK/);
+
+  // The scene is a spatial score, not arbitrary decoration: X is channel,
+  // higher notes rise on Y, and later rows move away on Z.
+  const spatialMapping = await page.evaluate(() => {
+    const events = [];
+    for (const mesh of window.WebTracker3D.noteMeshes) {
+      const matrices = mesh.instanceMatrix.array;
+      mesh.userData.cells.forEach((cell, index) => events.push({
+        ...cell,
+        x: matrices[index * 16 + 12],
+        y: matrices[index * 16 + 13],
+        z: matrices[index * 16 + 14]
+      }));
+    }
+    const sameChannel = events.filter(event => event.ch === 1);
+    const low = sameChannel.reduce((best, event) => !best || event.note < best.note ? event : best, null);
+    const high = sameChannel.reduce((best, event) => !best || event.note > best.note ? event : best, null);
+    const early = sameChannel.reduce((best, event) => !best || event.row < best.row ? event : best, null);
+    const late = sameChannel.reduce((best, event) => !best || event.row > best.row ? event : best, null);
+    return { low, high, early, late };
+  });
+  assert.equal(spatialMapping.low.x, spatialMapping.high.x, 'same-channel notes should share an X lane');
+  assert.ok(spatialMapping.high.y > spatialMapping.low.y, 'higher notes should rise on Y');
+  assert.ok(spatialMapping.late.z < spatialMapping.early.z, 'later rows should recede on Z');
+
+  // Click a projected visible note and confirm it selects the matching tracker cell.
+  const pickTarget = await page.evaluate(() => {
+    const app = window.WebTracker3D;
+    const bounds = app.renderer.domElement.getBoundingClientRect();
+    for (const mesh of app.noteMeshes) {
+      for (let index = 0; index < mesh.userData.cells.length; index++) {
+        const matrix = mesh.matrixWorld.clone();
+        mesh.getMatrixAt(index, matrix);
+        const point = app.camera.position.clone().set(0, 0, 0)
+          .applyMatrix4(matrix).applyMatrix4(mesh.matrixWorld).project(app.camera);
+        if (Math.abs(point.x) < 0.72 && Math.abs(point.y) < 0.64) {
+          return {
+            x: bounds.left + (point.x * 0.5 + 0.5) * bounds.width,
+            y: bounds.top + (-point.y * 0.5 + 0.5) * bounds.height,
+            row: mesh.userData.cells[index].row,
+            ch: mesh.userData.cells[index].ch
+          };
+        }
+      }
+    }
+    return null;
+  });
+  assert.ok(pickTarget, '3D overview should contain a visible selectable note');
+  await page.mouse.click(pickTarget.x, pickTarget.y);
+  assert.deepEqual(
+    await page.evaluate(() => ({ row: window.tracker.state.cursor.row, ch: window.tracker.state.cursor.ch })),
+    { row: pickTarget.row, ch: pickTarget.ch },
+    'clicking a 3D note should select its tracker cell'
+  );
+
+  const diagnostics = await page.evaluate(() => window.WebTracker3D.diagnostics());
+  assert.ok(diagnostics.calls < 40, `3D view should stay under 40 draw calls (got ${diagnostics.calls})`);
+  assert.ok(diagnostics.triangles < 100000, `3D view should stay under 100k triangles (got ${diagnostics.triangles})`);
   await page.waitForTimeout(500);
   const frame3dB = await page.evaluate(() => {
     const canvas = document.querySelector('#threePanel canvas');
@@ -91,6 +151,17 @@ try {
     return sum;
   });
   assert.notEqual(frame3dA.sum, frame3dB, '3D scene should animate between frames');
+
+  await page.click('#threeFollow');
+  assert.equal(await page.evaluate(() => window.WebTracker3D.cameraMode), 'follow');
+  const cameraBeforePlayback = await page.evaluate(() => window.WebTracker3D.camera.position.z);
+  await page.click('#btnPlayPat');
+  await page.waitForFunction(() => window.tracker.state.playRow >= 4, { timeout: 5000 });
+  await page.waitForTimeout(250);
+  const cameraDuringPlayback = await page.evaluate(() => window.WebTracker3D.camera.position.z);
+  assert.notEqual(cameraDuringPlayback, cameraBeforePlayback, 'follow camera should move with playback');
+  await page.click('#btnStop');
+  await page.waitForFunction(() => !window.tracker.state.playing, { timeout: 5000 });
   await page.click('#tabPattern');
 
   // playback starts and rows advance
